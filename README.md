@@ -10,7 +10,8 @@ IT記事・更新情報・動画・Podcast・リリース情報を集め、短�
 - [ユースケース](docs/use-cases.md)：利用者の目的と利用場面の区分。
 - [状態遷移図](docs/state-transitions.md)：記事の状態・一回の仕分け・保持と削除。
 - [仕分けのシーケンス図](docs/sequences.md)：仕分けの開始・手元での判断・端末保存・終了時の一括送信・次回起動時の再送・既読の非同期保存。
-- [一覧のシーケンス図](docs/sequences-list.md)：分割取得・スクロールでの追加読み込み・更新、気になるとピンの即時表示変更・非同期保存・失敗時の扱い。
+- [一覧のシーケンス図](docs/sequences-list.md)：分割取得・追加読み込み・更新、気になるとピンの即時表示変更・非同期保存、元記事を開く処理。
+- [サーバーのシーケンス図](docs/sequences-server.md)：定期収集・共通形式への変換・追加と更新、期限と件数による削除、新規追加の停止と再開。
 - [ユースケース図（SVG）](docs/diagrams/use-cases.svg) / [PlantUMLコード](docs/diagrams/use-cases.puml)
 
 ルールは [docs/rules.md](docs/rules.md) を基準とします。未決事項を合意済みの仕様として扱わず、状態遷移図 → シーケンス図 → クラス図の順に設計を具体化します。
@@ -86,7 +87,7 @@ python collect_samples.py --limit 5 --output data/samples
 
 - [ルールの未決事項](docs/rules.md#未決事項)を確認する。
 - [状態遷移図](docs/state-transitions.md)と未決事項を確認する。
-- [仕分け](docs/sequences.md)・[一覧](docs/sequences-list.md)のシーケンスを確認し、一覧から記事を開く処理・収集・削除の処理へ広げる。
+- [仕分け](docs/sequences.md)・[一覧](docs/sequences-list.md)・[サーバー](docs/sequences-server.md)の基本シーケンスと、設計案・未決事項を確認する。
 - データと処理の責任をクラス図にまとめる。
 
 推薦方法・類似度・興味の推定は今回の設計範囲外です。後から推薦を追加できる構造を検討します。技術スタック・DB製品・デプロイ先は未確定です。
