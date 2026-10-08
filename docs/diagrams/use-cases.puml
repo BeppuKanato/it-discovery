@@ -1,0 +1,57 @@
+@startuml
+left to right direction
+skinparam defaultFontName Meiryo
+skinparam defaultFontSize 16
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam packageStyle rectangle
+skinparam usecaseBackgroundColor #F4F8F6
+skinparam usecaseBorderColor #47665C
+skinparam actorBorderColor #253D35
+skinparam rectangleBorderColor #81958D
+skinparam nodesep 24
+skinparam ranksep 40
+skinparam packageBackgroundColor #FFFFFF
+skinparam packageBorderColor #A8B8B0
+
+actor "利用者" as User
+rectangle "IT情報収集アプリ" {
+  package "仕分けフェーズ（Tinder型UI）" {
+    usecase "記事を仕分ける" as Sort
+    usecase "直前の仕分けを\n取り消す" as Undo
+  }
+  package "一覧で見る" {
+    usecase "「気になる」記事の\n一覧を見る" as Interested
+    usecase "すべての記事の\n一覧を見る" as All
+    usecase "「気になる」登録を\n解除する" as Remove
+  }
+  package "仕分け・一覧で共通" {
+    usecase "記事を「気になる」に\n登録する" as Register
+    usecase "元記事を開く" as Open
+  }
+}
+User -- Sort
+User -- Register
+User -- Undo
+User -- Interested
+User -- Remove
+User -- All
+User -- Open
+
+note right of Sort
+  カードを一件ずつ確認し、
+  「気になる」に登録するか、
+  今回は見送って次へ進む。
+end note
+note right of Register
+  仕分け中にも、全記事一覧からも登録できる。
+  一覧からの登録は「仕分け」と呼ばない。
+end note
+note right of Open
+  カード・各一覧から外部サイトを直接開く。
+end note
+legend bottom
+  区分は利用場面の整理。線は利用者との関係を表す。
+  見送りは「記事を仕分ける」の手順として扱う。
+endlegend
+@enduml
