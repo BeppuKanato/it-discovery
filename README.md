@@ -8,6 +8,7 @@ IT記事・更新情報・動画・Podcast・リリース情報を集め、短�
 
 - [アプリのルール](docs/rules.md)：用語、仕分け、気になる登録、既読、ピン止め、収集・更新、削除ルール、未決事項。
 - [ユースケース](docs/use-cases.md)：利用者の目的と利用場面の区分。
+- [状態遷移図](docs/state-transitions.md)：記事の状態・一回の仕分け・保持と削除。
 - [ユースケース図（SVG）](docs/diagrams/use-cases.svg) / [PlantUMLコード](docs/diagrams/use-cases.puml)
 
 ルールは [docs/rules.md](docs/rules.md) を基準とします。未決事項を合意済みの仕様として扱わず、状態遷移図 → シーケンス図 → クラス図の順に設計を具体化します。
@@ -82,7 +83,7 @@ python collect_samples.py --limit 5 --output data/samples
 ## 次の設計
 
 - [ルールの未決事項](docs/rules.md#未決事項)を確認する。
-- 記事と仕分けの状態遷移を整理する。
+- [状態遷移図](docs/state-transitions.md)と未決事項を確認する。
 - 代表的な処理のシーケンス図を作る。
 - データと処理の責任をクラス図にまとめる。
 
