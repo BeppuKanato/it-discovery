@@ -4,7 +4,7 @@
 
 会話で合意したルールをまとめた設計の基準です。実装済み機能の一覧ではありません。提案のままの内容や実装上の確認事項は、末尾の「未決事項」に分けています。
 
-[READMEに戻る](../README.md) · [ユースケース](use-cases.md) · [状態遷移図](state-transitions.md)
+[READMEに戻る](../README.md) · [ユースケース](use-cases.md) · [状態遷移図](state-transitions.md) · [シーケンス図](sequences.md)
 
 ## 設計の範囲
 
