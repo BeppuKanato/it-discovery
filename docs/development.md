@@ -108,6 +108,16 @@ previewはローカルの表示確認用で、本番公開用サーバーでは�
 
 設定はapps/web/vite.config.ts、apps/api/src/config/server.config.ts、起動はapps/api/src/main.tsで確認できる。APIクライアントは共有型だけを信用せず、受け取ったJSONの最小形式も確認する。
 
+## UI部品とスタイル
+
+PrimeVue 4.5.5と@primeuix/themes 2.0.3を使う。どちらもMITライセンスの版を固定した。テーマ付きのCard・Button・Messageを接続確認画面で使い、Buttonのloadingとdisabledで通信中の操作を示す。
+
+共通の緑色や部品の角丸などはapps/web/src/app/ui-theme.tsで定義し、main.tsでPrimeVueを初期化する。現在はライト表示に揃える。App.vueには画面固有の配置をstyle scopedとして置き、style.cssにはフォント・背景などの基本設定を残す。PrimeVue内部のCSSへ直接上書きする方式は基本にしない。
+
+## コミット単位でのレビュー
+
+今後の変更は機能・変更目的ごとにコミットし、PR本文の「コミットと確認箇所」から読む場所を辿れるようにする。依存とlockfileは一緒に扱う。例えばPrimeVue導入ならpackage.json・main.ts・ui-theme.ts、画面への適用ならApp.vueを確認する。[作業指示](../AGENTS.md)と[PRテンプレート](../.github/pull_request_template.md)にも同じ方針を残す。
+
 ## Gitに入れるもの
 
 package-lock.json、ソース、設定例は管理する。.env、node_modules、dist、DB本体とその付随ファイル、調査スクリプトの生成データは.gitignoreで除外する。実際の秘密情報は設定例にも記載しない。
@@ -115,5 +125,7 @@ package-lock.json、ソース、設定例は管理する。.env、node_modules�
 ## Issue #5の検証記録
 
 Windows、Node.js 24.21.0、npm 10.9.9でnpm ci、typecheck、test、buildを確認した。Jestは12件、Vitestは2件が成功。ブラウザで接続失敗後の再試行と390px幅の表示を確認した。既定のViteプロキシ、APIの4100番への変更、CORSで指定したオリジンだけに許可ヘッダーが付くことも確認した。
+
+PrimeVue導入後にwebの型チェック・Vitest 2件・ビルドを再確認した。ブラウザでCard・Button・Messageの描画、失敗後の再試行、390px幅の表示とMessageのpoliteな状態通知を確認し、画面参照を更新した。
 
 2026-10-09のnpm audit --omit=devは指摘0件。開発用依存を含む監査には、Jest系の間接依存sprintf-jsのDoSに起因するmoderateの指摘が20件残る。固定した版では修正版が提供されておらず、古いJestへの強制変更は行っていない。実行用依存には含まれない。後続のCI・依存更新で継続確認する。

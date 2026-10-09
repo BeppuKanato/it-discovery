@@ -32,6 +32,7 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 |---|---|---|
 | フロントの記法 | Single File Component＋Composition API、script setup | template・script・styleを同じ部品で読める。TypeScriptを使う |
 | フロントのビルド | Vite | Vueを開発し、配布用の静的ファイルを生成する |
+| UI部品 | PrimeVue 4のStyled Mode＋Auraを元にしたテーマ | 共通部品を使用箇所でimportし、色と外観をテーマ設定に集める。画面固有の配置はscoped CSSで扱う |
 | 画面の経路 | Vue Router | 全記事・気になる・仕分けの経路を管理する。途中遷移の可否はIssue #4で決める |
 | 共有する表示状態 | Pinia | 起動状態と記事の表示状態を管理する。画面内だけの状態はref／computedに留める |
 | HTTP通信 | Axiosを使うApiClient | axios.createでベースURL・タイムアウトを揃え、JSON変換とエラー整理をApiClientに集める。各画面で通信を直接書かない |
@@ -208,6 +209,8 @@ mainからブランチを作り、依存PRが必要ならマージ後のmainを�
 
 Issue #1は開発全体の管理用なので、Issueを発行しただけでは閉じない。関連作業の完了に合わせて進行を更新する。
 
+コミットは1つの機能または変更目的ごとに分ける。例えば「ライブラリ導入」「通信処理」「画面への適用」「資料更新」を分け、各コミットで動く構成を保つ。依存とlockfileは同じコミットに含める。PR本文には各コミットの目的と主な確認ファイルを記載する。今後の作業指示は[AGENTS.md](../AGENTS.md)にも記録する。
+
 ## 後続Issueで決めること
 
 | Issue | 残る判断 |
@@ -221,6 +224,7 @@ Issue #1は開発全体の管理用なので、Issueを発行しただけでは�
 ## 選定時の参照
 
 - [VueのSingle File Component](https://vuejs.org/guide/scaling-up/sfc.html)
+- [PrimeVue 4のテーマ](https://v4.primevue.org/theming/styled/)
 - [Piniaの概要](https://pinia.vuejs.org/introduction)
 - [Viteの本番ビルド](https://vite.dev/guide/build)
 - [DrizzleのSQLite対応](https://orm.drizzle.team/docs/get-started-sqlite)

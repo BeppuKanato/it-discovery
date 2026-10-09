@@ -10,6 +10,7 @@ IT記事・更新情報・動画・Podcast・リリース情報を集め、短�
 |---|---|
 | フロント | Vue＋TypeScript、Vite、PiniaのSPA |
 | API通信 | Axiosを使うApiClient |
+| UI部品 | PrimeVue 4＋Auraを元にした共通テーマ |
 | バックエンド | NestJS＋TypeScript |
 | DB | SQLite（Drizzle ORM＋better-sqlite3） |
 | バックエンド配置 | GCP Compute Engine上のDocker、DBはVMの永続ディスク |
@@ -67,6 +68,8 @@ npm run build
 ## 開発の進め方
 
 [開発Issue一覧・進行順序](https://github.com/BeppuKanato/it-discovery/issues/1)から各作業を辿れます。基本は1 Issue・1ブランチ・1 PRとし、ブランチ名は `docs/2-code-structure` のように種類・Issue番号・作業名を含めます。PRはレビュー後にマージします。[詳細](docs/architecture.md#ブランチとpr)
+
+コミットは機能・変更目的ごとに分け、PR本文にコミットと確認ファイルを記載します。今後の実装時の方針は[AGENTS.md](AGENTS.md)を参照します。
 
 ## Issue・PRテンプレート
 
