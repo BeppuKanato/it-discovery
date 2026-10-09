@@ -1,0 +1,77 @@
+name: 開発タスク
+description: 機能追加・不具合修正・設計・環境整備の作業を整理する
+body:
+  - type: markdown
+    attributes:
+      value: |
+        1つのIssueに、レビューできる大きさの作業をまとめてください。
+        未決定の仕様は「確認事項」に記載し、完了条件と区別してください。
+  - type: dropdown
+    id: category
+    attributes:
+      label: 作業の種類
+      options:
+        - 機能追加
+        - 不具合修正
+        - 設計・ドキュメント
+        - 環境整備・リファクタリング
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 目的
+      description: 解決したい問題と、作業後にできるようになることを書いてください。
+      placeholder: 現状は〜。この作業で〜できるようにする。
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 作業範囲
+      description: 今回変更する画面・API・保存処理・資料などを書いてください。
+      placeholder: |
+        - 〜を実装する
+        - 〜を更新する
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 完了条件
+      description: 操作と期待する結果など、完了を確認できる条件を書いてください。
+      placeholder: |
+        - [ ] 〜すると、〜が表示される
+        - [ ] 〜しても、〜が保持される
+    validations:
+      required: true
+  - type: textarea
+    id: excluded
+    attributes:
+      label: 対象外
+      description: 今回は取り組まない内容があれば書いてください。
+      placeholder: 今回は〜を含めない。
+  - type: textarea
+    id: references
+    attributes:
+      label: 関連資料・Issue
+      description: 関係するルール・図・Issueのリンクや、該当する節を書いてください。
+      placeholder: |
+        - docs/rules.md の「〜」
+        - 関連Issue：#123
+  - type: textarea
+    id: questions
+    attributes:
+      label: 確認事項
+      description: 着手前に決める必要がある点や、判断に迷う点を書いてください。
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 再現手順・環境
+      description: 不具合修正の場合は、再現手順・実際の結果・期待する結果・環境を記載してください。
+      placeholder: |
+        1. 〜を開く
+        2. 〜を操作する
+        実際の結果：
+        期待する結果：
+        環境：

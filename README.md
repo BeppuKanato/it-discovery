@@ -27,6 +27,13 @@ IT記事・更新情報・動画・Podcast・リリース情報を集め、短�
 
 表示は日本語・スマホ向けを基本とし、カードのサムネイル領域内に中央揃えのタイトル、小さな説明、出典アイコン・サイト名を配置します。日付などは下に表示します。
 
+## Issue・PRテンプレート
+
+- [Issueを作成する](https://github.com/BeppuKanato/it-discovery/issues/new/choose)：目的・作業範囲・完了条件を入力する。[フォーム定義](.github/ISSUE_TEMPLATE/development.yml)
+- [PRテンプレート](.github/pull_request_template.md)：変更内容・関連Issue・確認方法と結果・未解決点を記載する。新しいPRの作成時に本文へ表示される。
+
+GitHubのWeb画面以外からIssueやPRを作成する場合も、テンプレートの項目に沿って本文を記載する。
+
 ## 情報源の調査スクリプト
 
 [collect_samples.py](collect_samples.py) は、情報源から取得できるメタデータを確認するためのスクリプトです。本番アプリの収集処理や、仕分け・保存機能の実装ではありません。
