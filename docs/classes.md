@@ -199,7 +199,7 @@ StartupCoordinatorは、端末に未送信登録があれば同期成功まで�
 
 MutationCoordinatorは一覧の最新操作とサーバーの確定状態を分けて管理する。古い応答で新しい表示を戻さず、同じ記事・同じ項目への送信順も保つ。気になる解除で外した記事を失敗時に戻す表示処理はListControllerが担当し、気になる・ピン以外の状態まで戻さない。
 
-PendingInterestStoreはIndexedDB＋idb、ApiClientは標準fetchを包む実装を用意する。一覧の未確定変更も端末へ永続保存するかは未決であり、このPendingInterestStoreへ自動的に含める仕様にはしない。
+PendingInterestStoreはIndexedDB＋idb、ApiClientはAxiosを使う実装を用意する。一覧の未確定変更も端末へ永続保存するかは未決であり、このPendingInterestStoreへ自動的に含める仕様にはしない。
 
 ### コードの流れの例
 
