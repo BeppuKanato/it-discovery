@@ -1,0 +1,11 @@
+{
+  "name": "@it-discovery/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
