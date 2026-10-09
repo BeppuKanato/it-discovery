@@ -1,0 +1,14 @@
+{
+  "name": "it-discovery",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": "^24.15.0", "npm": ">=10" },
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run build -w @it-discovery/contracts && concurrently --kill-others --names contracts,api,web \"npm run dev -w @it-discovery/contracts\" \"npm run dev -w @it-discovery/api\" \"npm run dev -w @it-discovery/web\"",
+    "build": "npm run build -w @it-discovery/contracts && npm run build -w @it-discovery/api && npm run build -w @it-discovery/web",
+    "typecheck": "npm run build -w @it-discovery/contracts && npm run typecheck --workspaces",
+    "test": "npm run build -w @it-discovery/contracts && npm run test -w @it-discovery/api && npm run test -w @it-discovery/web"
+  },
+  "devDependencies": { "concurrently": "10.0.6", "typescript": "5.9.3" }
+}
