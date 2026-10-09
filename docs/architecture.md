@@ -34,7 +34,7 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 | フロントのビルド | Vite | Vueを開発し、配布用の静的ファイルを生成する |
 | 画面の経路 | Vue Router | 全記事・気になる・仕分けの経路を管理する。途中遷移の可否はIssue #4で決める |
 | 共有する表示状態 | Pinia | 起動状態と記事の表示状態を管理する。画面内だけの状態はref／computedに留める |
-| HTTP通信 | 標準fetchを包むApiClient | URL・JSON・エラー処理を一箇所に集め、各画面で通信を直接書かない |
+| HTTP通信 | Axiosを使うApiClient | axios.createでベースURL・タイムアウトを揃え、JSON変換とエラー整理をApiClientに集める。各画面で通信を直接書かない |
 | 端末の未送信保存 | IndexedDB＋idb | 非同期の端末保存をPromiseで扱い、PendingInterestStoreの実装内に閉じ込める |
 | サーバーのDB操作 | Drizzle ORM＋better-sqlite3 | テーブル定義・検索・更新をTypeScriptで読み、SQLiteファイルを直接使う |
 | DB構造の変更 | Drizzle KitでSQLマイグレーションを生成・レビューして適用 | データを消さず変更履歴を管理する。DB本体はGitに入れない |
@@ -46,6 +46,10 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 これらは実装開始用の選択。Node.jsの対応LTSと各ライブラリの互換性をIssue #5で確認し、安定版を選んでpackage-lock.jsonに固定する。資料が示す最新版やRCを無条件に採用しない。サーバーのHTTPアダプターはNest標準のExpressを初期構成とし、Fastifyへの変更は必要が出てから検討する。
 
 better-sqlite3のDB処理は同期であり、Promiseに包むだけでは処理中の待ち時間は消えない。個人利用・短いDB処理を前提に選び、外部取得はトランザクションの外で行う。件数削除などの長い処理が問題になった場合に分離を検討する。ネイティブモジュールの互換性はDockerのLinux環境でも確認し、ホストのnode_modulesをイメージへ持ち込まない。
+
+Axiosの共通インスタンスはApiClient内で生成し、画面側には記事取得・状態変更など目的別の関数を公開する。共通処理は通信設定とエラー整理に留め、登録順・再試行・未送信同期はMutationCoordinatorとInterestResultSyncが管理する。Interceptorへ業務処理を集めない。
+
+Drizzle ORMはテーブル定義と検索・更新をTypeScriptで表す層、better-sqlite3はそのSQLをSQLiteで実行するドライバーである。アプリのDB処理はRepositoryからDrizzleを呼び、Drizzleがbetter-sqlite3を使ってDBファイルへ読み書きする。IndexedDBはブラウザ内の保存先、idbはそのAPIをPromiseで扱えるようにする小さなライブラリである。
 
 ## リポジトリの配置
 
@@ -140,7 +144,7 @@ docs/
 | ArticleOpeningService | web/src/services/article-opening.service.ts | 外部を開き、既読の保存を依頼する |
 | InterestResultSync | web/src/services/interest-result-sync.ts | 途中保存・終了送信・起動時再送を担当する |
 | PendingInterestStore | webの保存契約、IndexedDB実装 | 未送信結果を読み書きする |
-| ApiClient | web/src/infrastructure/api/api-client.ts | fetchでNestのAPIを呼ぶ |
+| ApiClient | web/src/infrastructure/api/api-client.ts | AxiosでNestのAPIを呼ぶ |
 | HTTPの入口（図では省略） | api/src/articles/articles-http.controller.ts | 入力検証・Service呼び出し・HTTP応答を担当する |
 | ArticleService | api/src/articles/article.service.ts | 一覧・仕分け対象・登録・既読の処理を担当する |
 | ArticleRepository | api/src/articles/domain/article.repository.ts | DB操作の契約を定義する |
@@ -154,7 +158,7 @@ docs/
 
 画面は描画と入力受付、composableは操作の進行、Serviceは通信・保存の調整を担当する。一覧と仕分けで共通に表示する記事状態はPiniaのID別状態を使い、サーバー確定値と未確定の表示変更を区別する。ページのID列・カーソル・取得世代は一覧側、その回の履歴はSortingSession側に置く。
 
-SortingSessionはVue・fetch・IndexedDBに依存しない純粋な処理にする。useSortingが操作後の表示用状態をref等へ反映する。Piniaに同じ履歴を重複して保存したり、SortingSessionを次回起動で復元したりしない。
+SortingSessionはVue・Axios・IndexedDBに依存しない純粋な処理にする。useSortingが操作後の表示用状態をref等へ反映する。Piniaに同じ履歴を重複して保存したり、SortingSessionを次回起動で復元したりしない。
 
 Vueのサービスはappで組み立ててcomposableに渡す。NestのServiceとRepositoryはModuleのproviderで接続する。TypeScriptのinterfaceは実行時に存在しないため、Repositoryを差し替えるDIには明示したトークンを使う。ORMとHTTPデコレーターをドメイン処理へ持ち込まない。
 
@@ -220,6 +224,7 @@ Issue #1は開発全体の管理用なので、Issueを発行しただけでは�
 - [Piniaの概要](https://pinia.vuejs.org/introduction)
 - [Viteの本番ビルド](https://vite.dev/guide/build)
 - [DrizzleのSQLite対応](https://orm.drizzle.team/docs/get-started-sqlite)
+- [Axios：共通インスタンス](https://axios-http.com/docs/instance)
 - [idb：IndexedDBのPromiseラッパー](https://github.com/jakearchibald/idb)
 - [NestのValidationPipe](https://docs.nestjs.com/techniques/validation)
 - [Nestの定期実行](https://docs.nestjs.com/techniques/task-scheduling)
