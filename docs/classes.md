@@ -27,7 +27,7 @@ classDiagram
         +bool enabled
     }
     class Article {
-        +String articleId
+        +int articleId
         +String sourceId
         +Optional externalArticleId
         +String url
@@ -39,7 +39,7 @@ classDiagram
         +DateTime fetchedAt
     }
     class ArticleState {
-        +String articleId
+        +int articleId
         +bool interested
         +bool pinned
         +Optional lastOpenedAt
