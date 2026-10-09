@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@it-discovery/contracts": "0.1.0",
+    "@primeuix/themes": "2.0.3",
     "axios": "1.20.0",
+    "primevue": "4.5.5",
     "vue": "3.5.43"
   },
   "devDependencies": {
