@@ -9,6 +9,7 @@ IT記事・更新情報・動画・Podcast・リリース情報を集め、短�
 | 項目 | 方針 |
 |---|---|
 | フロント | Vue＋TypeScript、Vite、PiniaのSPA |
+| API通信 | Axiosを使うApiClient |
 | バックエンド | NestJS＋TypeScript |
 | DB | SQLite（Drizzle ORM＋better-sqlite3） |
 | バックエンド配置 | GCP Compute Engine上のDocker、DBはVMの永続ディスク |
