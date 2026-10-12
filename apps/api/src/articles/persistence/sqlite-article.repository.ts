@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DatabaseService } from '../../database/database.service';
 import { articles, articleStates } from '../../database/schema';
-import type { ArticleInput } from '../domain/article';
-import type { ArticleState } from '../domain/article-state';
-import { ArticleRepository, type StoredArticle } from '../domain/article.repository';
+import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
+import type { ArticleState } from '../models/article-state';
+import { ArticleRepository, type StoredArticle } from '../application/article.repository';
+import { toArticle } from './article.mapper';
 
 @Injectable()
 export class SqliteArticleRepository extends ArticleRepository {
@@ -12,55 +13,66 @@ export class SqliteArticleRepository extends ArticleRepository {
     super();
   }
 
-  // 同一記事の取得日時と状態を維持して追加・更新する。
-  upsert(input: ArticleInput, fetchedAt = new Date()): StoredArticle {
-    if (!input.sourceId.trim() || !input.url.trim() || !input.title.trim()) {
-      throw new Error('sourceId, url and title are required');
-    }
-    for (const value of [fetchedAt, input.publishedAt, input.sourceUpdatedAt]) {
-      if (value && !Number.isFinite(value.getTime())) throw new Error('Invalid article date');
-    }
-    const externalArticleId = input.externalArticleId || null;
-    const metadata = {
-      externalArticleId, url: input.url, title: input.title,
-      description: input.description ?? null, author: input.author ?? null,
-      publishedAt: input.publishedAt ?? null, sourceUpdatedAt: input.sourceUpdatedAt ?? null,
-    };
-    return this.database.db.transaction((tx) => {
-      const article = tx.insert(articles).values({
-        ...metadata, sourceId: input.sourceId, fetchedAt,
-        identityKind: externalArticleId === null ? 'url' : 'id',
-        identityValue: externalArticleId ?? input.url,
-      }).onConflictDoUpdate({
-        target: [articles.sourceId, articles.identityKind, articles.identityValue],
-        set: metadata,
+  // 同期処理をSQLiteのトランザクションで一括確定する。
+  transaction<T>(operation: () => T): T {
+    return this.database.client.transaction(operation).immediate();
+  }
+
+  // 指定された識別条件で記事と状態を検索する。
+  findByIdentity(identity: ArticleIdentity): StoredArticle | undefined {
+    const row = this.database.db.select({ article: articles, state: articleStates })
+      .from(articles).innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
+      .where(and(
+        eq(articles.sourceId, identity.sourceId),
+        eq(articles.identityKind, identity.kind),
+        eq(articles.identityValue, identity.value),
+      )).get();
+    return row ? { article: toArticle(row.article), state: row.state } : undefined;
+  }
+
+  // 渡された記事と初期状態を一括保存する。
+  insert({ input, identity, fetchedAt }: NewArticle): StoredArticle {
+    return this.transaction(() => {
+      const row = this.database.db.insert(articles).values({
+        sourceId: input.sourceId,
+        identityKind: identity.kind,
+        identityValue: identity.value,
+        externalArticleId: input.externalArticleId || null,
+        url: input.url,
+        title: input.title,
+        description: input.description ?? null,
+        author: input.author ?? null,
+        publishedAt: input.publishedAt ?? null,
+        sourceUpdatedAt: input.sourceUpdatedAt ?? null,
+        fetchedAt,
       }).returning().get();
-      tx.insert(articleStates).values({ articleId: article.articleId }).onConflictDoNothing().run();
-      const state = tx.select().from(articleStates)
-        .where(eq(articleStates.articleId, article.articleId)).get()!;
-      return { article, state };
-    }, { behavior: 'immediate' });
+      const state = this.database.db.insert(articleStates).values({ articleId: row.articleId })
+        .returning().get();
+      return { article: toArticle(row), state };
+    });
+  }
+
+  // 指定されたタイトル・概要・著者を保存する。
+  updateContent(articleId: number, content: ArticleContent): StoredArticle {
+    return this.transaction(() => {
+      this.database.db.update(articles).set(content).where(eq(articles.articleId, articleId)).run();
+      const saved = this.findById(articleId);
+      if (!saved) throw new Error('Article not found');
+      return saved;
+    });
   }
 
   // 記事と状態をIDで取得する。
   findById(articleId: number): StoredArticle | undefined {
-    return this.database.db.select({ article: articles, state: articleStates })
+    const row = this.database.db.select({ article: articles, state: articleStates })
       .from(articles).innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
       .where(eq(articles.articleId, articleId)).get();
+    return row ? { article: toArticle(row.article), state: row.state } : undefined;
   }
 
-  // 指定項目だけを保存し、他の状態を維持する。
-  updateState(articleId: number, patch: Partial<ArticleState>): StoredArticle | undefined {
-    const changes: Partial<ArticleState> = {};
-    if (patch.interested !== undefined) changes.interested = patch.interested;
-    if (patch.pinned !== undefined) changes.pinned = patch.pinned;
-    if (patch.lastOpenedAt !== undefined) {
-      if (patch.lastOpenedAt && !Number.isFinite(patch.lastOpenedAt.getTime())) {
-        throw new Error('Invalid lastOpenedAt');
-      }
-      changes.lastOpenedAt = patch.lastOpenedAt;
-    }
-    return this.database.db.transaction(() => {
+  // 指定された状態の項目を保存する。
+  updateState(articleId: number, changes: Partial<ArticleState>): StoredArticle | undefined {
+    return this.transaction(() => {
       if (Object.keys(changes).length > 0) {
         this.database.db.update(articleStates).set(changes)
           .where(eq(articleStates.articleId, articleId)).run();

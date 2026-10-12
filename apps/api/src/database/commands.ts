@@ -4,6 +4,7 @@ import { DatabaseService } from './database.service';
 import { SqliteConfigRepository } from '../config/sqlite-config.repository';
 import { defaultSources } from '../config/default-sources';
 import { SqliteArticleRepository } from '../articles/persistence/sqlite-article.repository';
+import { ArticleService } from '../articles/application/article.service';
 
 if (existsSync('.env')) loadEnvFile('.env');
 const command = process.argv[2];
@@ -13,10 +14,10 @@ try {
   const configs = new SqliteConfigRepository(database);
   configs.addDefaults(defaultSources);
   if (command === 'seed') {
-    const repository = new SqliteArticleRepository(database);
+    const service = new ArticleService(new SqliteArticleRepository(database));
     database.db.transaction(() => {
       for (const source of defaultSources) {
-        repository.upsert({
+        service.register({
           sourceId: source.sourceId,
           externalArticleId: 'it-discovery-local-sample-1',
           url: `https://example.com/it-discovery-sample/${source.sourceId}`,
