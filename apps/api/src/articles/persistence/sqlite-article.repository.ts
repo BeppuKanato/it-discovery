@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { DatabaseService } from '../../database/database.service';
-import { articles, articleStates } from '../../database/schema';
+import { DatabaseService } from '../../infrastructure/database/database.service';
+import { articles, articleStates } from '../../infrastructure/database/schema';
 import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
 import type { ArticleState } from '../models/article-state';
 import { ArticleRepository, type StoredArticle } from '../application/article.repository';

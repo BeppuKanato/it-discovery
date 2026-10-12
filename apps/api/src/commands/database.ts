@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { loadEnvFile } from 'node:process';
-import { DatabaseService } from './database.service';
+import { DatabaseService } from '../infrastructure/database/database.service';
 import { SqliteSettingsRepository } from '../settings/persistence/sqlite-settings.repository';
 import { SettingsService } from '../settings/application/settings.service';
 import { defaultSources } from '../settings/application/default-sources';

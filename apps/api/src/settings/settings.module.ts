@@ -1,5 +1,5 @@
 import { Inject, Module, type OnModuleInit } from '@nestjs/common';
-import { DatabaseModule } from '../database/database.module';
+import { DatabaseModule } from '../infrastructure/database/database.module';
 import { SettingsRepository } from './application/settings.repository';
 import { SettingsService } from './application/settings.service';
 import { SqliteSettingsRepository } from './persistence/sqlite-settings.repository';

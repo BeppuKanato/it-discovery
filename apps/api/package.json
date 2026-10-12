@@ -9,8 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/database/commands.ts migrate",
-    "db:seed": "tsx src/database/commands.ts seed"
+    "db:migrate": "tsx src/commands/database.ts migrate",
+    "db:seed": "tsx src/commands/database.ts seed"
   },
   "dependencies": {
     "@it-discovery/contracts": "0.1.0",

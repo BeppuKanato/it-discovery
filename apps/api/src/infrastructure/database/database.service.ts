@@ -20,7 +20,7 @@ export class DatabaseService implements OnApplicationShutdown {
       this.client.pragma('foreign_keys = ON');
       this.client.pragma('journal_mode = WAL');
       this.db = drizzle(this.client, { schema });
-      migrate(this.db, { migrationsFolder: resolve(__dirname, '../../drizzle') });
+      migrate(this.db, { migrationsFolder: resolve(__dirname, '../../../drizzle') });
     } catch (error) {
       this.client.close();
       throw error;

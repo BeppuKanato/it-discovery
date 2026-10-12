@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import { DatabaseService } from '../../database/database.service';
-import { appSettings, sources } from '../../database/schema';
+import { DatabaseService } from '../../infrastructure/database/database.service';
+import { appSettings, sources } from '../../infrastructure/database/schema';
 import type { CollectionSettings, SourceConfig } from '../models/source-config';
 import { SettingsRepository } from '../application/settings.repository';
 

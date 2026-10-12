@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DatabaseModule } from '../database/database.module';
+import { DatabaseModule } from '../infrastructure/database/database.module';
 import { ArticleRepository } from './application/article.repository';
 import { ArticleService } from './application/article.service';
 import { SqliteArticleRepository } from './persistence/sqlite-article.repository';
