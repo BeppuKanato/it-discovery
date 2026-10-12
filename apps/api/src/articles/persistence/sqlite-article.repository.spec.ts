@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../database/database.service';
 import { articles, articleStates } from '../../database/schema';
-import { SqliteConfigRepository } from '../../config/sqlite-config.repository';
-import { defaultSources } from '../../config/default-sources';
+import { SqliteSettingsRepository } from '../../settings/persistence/sqlite-settings.repository';
+import { SettingsService } from '../../settings/application/settings.service';
+import { defaultSources } from '../../settings/application/default-sources';
 import { isProtected, isRead, isSortingCandidate } from '../models/article-state';
 import { SqliteArticleRepository } from './sqlite-article.repository';
 import { ArticleService } from '../application/article.service';
@@ -14,7 +15,7 @@ describe('SQLiteの記事と設定の永続保存', () => {
   let directory: string;
   let database: DatabaseService;
   let repository: ArticleService;
-  let configs: SqliteConfigRepository;
+  let configs: SettingsService;
   const oldPath = process.env['DATABASE_PATH'];
   const input = { sourceId: 'zenn', externalArticleId: 'article-1', url: 'https://example.com/1', title: '最初のタイトル' };
   const firstDate = new Date('2026-10-01T00:00:00Z');
@@ -23,8 +24,8 @@ describe('SQLiteの記事と設定の永続保存', () => {
     directory = mkdtempSync(join(tmpdir(), 'it-discovery-db-'));
     process.env['DATABASE_PATH'] = join(directory, 'nested', 'test.db');
     database = new DatabaseService();
-    configs = new SqliteConfigRepository(database);
-    configs.addDefaults(defaultSources);
+    configs = new SettingsService(new SqliteSettingsRepository(database));
+    configs.initialize();
     repository = new ArticleService(new SqliteArticleRepository(database));
   });
 
@@ -68,8 +69,8 @@ describe('SQLiteの記事と設定の永続保存', () => {
     database.onApplicationShutdown();
     database = new DatabaseService();
     repository = new ArticleService(new SqliteArticleRepository(database));
-    configs = new SqliteConfigRepository(database);
-    configs.addDefaults(defaultSources);
+    configs = new SettingsService(new SqliteSettingsRepository(database));
+    configs.initialize();
     expect(repository.findById(saved.article.articleId)?.state.interested).toBe(true);
     expect(configs.getSettings().unreadRetentionDays).toBe(90);
     expect(configs.listSources().find((source) => source.sourceId === 'zenn')).toMatchObject({ enabled: false, maxPerRun: 10 });
@@ -98,6 +99,23 @@ describe('SQLiteの記事と設定の永続保存', () => {
     database.client.exec("CREATE TRIGGER reject_state BEFORE INSERT ON article_states BEGIN SELECT RAISE(ABORT, 'test failure'); END;");
     expect(() => repository.register(input)).toThrow();
     expect(database.db.select().from(articles).all()).toHaveLength(0);
+  });
+
+  it('検索と保存を含む処理の失敗は内容更新もロールバックする', () => {
+    const saved = repository.register(input, firstDate);
+    const storage = new SqliteArticleRepository(database);
+    expect(() => storage.transaction(() => {
+      storage.updateContent(saved.article.articleId, { title: '取り消される変更', description: null, author: null });
+      throw new Error('処理失敗');
+    })).toThrow('処理失敗');
+    expect(repository.findById(saved.article.articleId)?.article.title).toBe(input.title);
+  });
+
+  it('初期設定の追加に失敗したら設定と取得先をまとめてロールバックする', () => {
+    database.client.exec("DELETE FROM sources; DELETE FROM app_settings; CREATE TRIGGER reject_source BEFORE INSERT ON sources BEGIN SELECT RAISE(ABORT, 'test failure'); END;");
+    expect(() => configs.initialize()).toThrow();
+    expect(configs.listSources()).toHaveLength(0);
+    expect(() => configs.getSettings()).toThrow('Settings are not initialized');
   });
 
   it('同一照合キー・重複取得先・存在しない取得元をDB制約で拒否する', () => {

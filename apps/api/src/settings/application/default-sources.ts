@@ -1,4 +1,4 @@
-import type { SourceConfig } from './source-config';
+import type { SourceConfig } from '../models/source-config';
 
 export const defaultSources: SourceConfig[] = [
   { sourceId: 'zenn', siteName: 'Zenn', endpoint: 'https://zenn.dev/feed', adapterKind: 'rss-atom', iconUrl: null, maxPerRun: 50, enabled: true },

@@ -21,10 +21,6 @@ export class DatabaseService implements OnApplicationShutdown {
       this.client.pragma('journal_mode = WAL');
       this.db = drizzle(this.client, { schema });
       migrate(this.db, { migrationsFolder: resolve(__dirname, '../../drizzle') });
-      this.db.insert(schema.appSettings).values({
-        id: 1, unreadRetentionDays: 30, maxArticles: 10000,
-        collectionHour: 5, collectionTimezone: 'Asia/Tokyo',
-      }).onConflictDoNothing().run();
     } catch (error) {
       this.client.close();
       throw error;
