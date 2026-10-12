@@ -41,6 +41,7 @@ npm run build
 
 ## 設計資料
 
+- [保存基盤の構成図](docs/storage-architecture.md)：PR #31で実装した責務・依存関係・記事登録の処理順。
 - [SQLiteの作成とサンプル投入](docs/database.md)：DB保存先、マイグレーション、架空サンプル投入、保存処理の読み方。
 - [開発基盤の起動と確認](docs/development.md)：設定例、起動・型チェック・テスト・ビルド手順。
 - [技術構成とコード配置](docs/architecture.md)：採用技術、責任とファイルの対応、API共有型、開発・配置方針。

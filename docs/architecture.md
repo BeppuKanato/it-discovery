@@ -1,6 +1,6 @@
 # 技術構成とコードの配置
 
-更新日：2026-10-09
+更新日：2026-10-12
 
 [READMEに戻る](../README.md) · [クラス図](classes.md) · [ルール](rules.md) · [画面構成の参照](ui-reference.md) · [開発一覧](https://github.com/BeppuKanato/it-discovery/issues/1)
 
@@ -56,6 +56,10 @@ Drizzle ORMはテーブル定義と検索・更新をTypeScriptで表す層、be
 
 機能のまとまりを優先し、必要なファイルを各Issueで追加する。空のクラスを先に大量作成しない。
 
+機能別構成の中をレイヤードで整理し、外部接続にはポートとアダプターの考え方を使う。Serviceが判断と手順を持ち、DBの検索・保存はRepositoryの抽象を通して頼む。具体的なSQLite実装はModuleやコマンドで組み立てる。各ModuleはServiceを公開し、他の機能から内部Repositoryを直接使わない。オニオンへの全面的な分割は、実装を読んで必要性を確認してから検討する。
+
+PR #31の実装済み範囲は[保存基盤の構成図](storage-architecture.md)で説明する。依存関係と実行順序を別図にし、未実装の収集・仕分け・保持処理と区別する。
+
 ```text
 apps/
   web/
@@ -92,13 +96,24 @@ apps/
       articles/
         articles.module.ts
         articles-http.controller.ts
-        article.service.ts
         dto/                       # HTTP入力の検証・変換
-        domain/
+        application/
+          article.service.ts       # 検証・識別・登録更新の手順
+          article.repository.ts    # Repositoryの約束・DIトークン
+        models/
           article.ts
           article-state.ts
-          article.repository.ts    # Repositoryの契約・DIトークン
-        persistence/sqlite-article.repository.ts
+        persistence/
+          sqlite-article.repository.ts
+          article.mapper.ts        # DBの行を共通形式へ変換
+      settings/
+        settings.module.ts
+        application/
+          settings.service.ts      # 検証・初期設定の追加判断
+          settings.repository.ts   # 設定の取得・保存の約束
+          default-sources.ts
+        models/source-config.ts
+        persistence/sqlite-settings.repository.ts
       collection/
         collection.module.ts
         collection.job.ts
@@ -110,10 +125,13 @@ apps/
       retention/
         retention.module.ts
         retention.service.ts
-      database/
+      infrastructure/database/
         database.module.ts
+        database.service.ts        # 接続・SQL適用・切断
+        database-path.ts
         schema.ts
-      config/                      # 環境変数・取得先・保持設定
+      commands/database.ts         # 部品の組み立てとDB操作の入口
+      config/                      # サーバーの環境変数
     drizzle/                       # SQLマイグレーション
 packages/
   contracts/src/                   # HTTPの要求・応答の共有型
@@ -124,7 +142,7 @@ docs/
   ui-reference.md
 ```
 
-Issue #6ではdatabase・articles/domainとpersistence・configの保存基盤を追加した。実際のテーブル、マイグレーションとサンプル投入は[DB手順](database.md)を参照する。記事API・取得先設定UI・収集・保持削除は後続Issue。認証方式・バックアップ方法は未選定なので、ここで具体的な認証クラスや保存先SDKを固定しない。
+Issue #6ではarticles・settingsと共通DB基盤を追加した。実際のテーブル、マイグレーションとサンプル投入は[DB手順](database.md)を参照する。記事API・取得先設定UI・収集・保持削除は後続Issue。認証方式・バックアップ方法は未選定なので、ここで具体的な認証クラスや保存先SDKを固定しない。
 
 ## クラス図からコードへの対応
 
@@ -132,9 +150,9 @@ Issue #6ではdatabase・articles/domainとpersistence・configの保存基盤�
 
 | クラス図の責任 | 実装予定の場所 | 担当すること |
 |---|---|---|
-| SourceConfig・RetentionSettings | api/src/config/ | 取得先と保持設定を読み、必要な値を渡す |
-| Article | api/src/articles/domain/article.ts | サーバー内部の記事データを表す |
-| ArticleState | api/src/articles/domain/article-state.ts | 既読・仕分け対象・保護条件を判定する |
+| SourceConfig・RetentionSettings | api/src/settings/models/ | 取得先と保持設定を読み、必要な値を渡す |
+| Article | api/src/articles/models/article.ts | サーバー内部の記事データを表す |
+| ArticleState | api/src/articles/models/article-state.ts | 既読・仕分け対象・保護条件を判定する |
 | ArticlePage | packages/contracts/src/ | 記事と対応状態・続き位置をJSONの型として表す |
 | PendingInterestBatch | webの保存契約とinfrastructure/storage/ | 端末内のID集合と版を表す。通信形式とは別に扱う |
 | StartupCoordinator | web/src/features/startup/useStartup.ts | 同期して通常操作を開放する |
@@ -147,14 +165,14 @@ Issue #6ではdatabase・articles/domainとpersistence・configの保存基盤�
 | PendingInterestStore | webの保存契約、IndexedDB実装 | 未送信結果を読み書きする |
 | ApiClient | web/src/infrastructure/api/api-client.ts | AxiosでNestのAPIを呼ぶ |
 | HTTPの入口（図では省略） | api/src/articles/articles-http.controller.ts | 入力検証・Service呼び出し・HTTP応答を担当する |
-| ArticleService | api/src/articles/article.service.ts | 一覧・仕分け対象・登録・既読の処理を担当する |
-| ArticleRepository | api/src/articles/domain/article.repository.ts | DB操作の契約を定義する |
+| ArticleService | api/src/articles/application/article.service.ts | 一覧・仕分け対象・登録・既読の処理を担当する |
+| ArticleRepository | api/src/articles/application/article.repository.ts | DB操作の契約を定義する |
 | ArticleRepositoryのSQLite実装 | api/src/articles/persistence/sqlite-article.repository.ts | Drizzleで検索・保存・保持処理を実行する |
 | CollectionJob | api/src/collection/collection.job.ts | 定期収集を一回進める |
 | SourceAdapter | api/src/collection/adapters/source-adapter.ts | 情報源から取得する共通の契約を定義する |
 | RssAtomAdapter | api/src/collection/adapters/rss-atom.adapter.ts | RSS・Atomを取得する |
 | ApiSourceAdapter | api/src/collection/adapters/github-releases.adapter.ts | 初期対象のGitHub ReleasesをAPIで取得する |
-| ArticleNormalizer | api/src/collection/article-normalizer.ts | 共通形式と照合キーへ変換する |
+| ArticleNormalizer | api/src/collection/article-normalizer.ts | 外部データを共通形式へ変換する。識別条件はArticleServiceが作る |
 | RetentionService | api/src/retention/retention.service.ts | 保護・期限・件数から保持を判断する |
 
 画面は描画と入力受付、composableは操作の進行、Serviceは通信・保存の調整を担当する。一覧と仕分けで共通に表示する記事状態はPiniaのID別状態を使い、サーバー確定値と未確定の表示変更を区別する。ページのID列・カーソル・取得世代は一覧側、その回の履歴はSortingSession側に置く。
