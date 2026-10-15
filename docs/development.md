@@ -10,7 +10,7 @@ Issue #5の範囲は、VueからNestの疎通確認APIへ接続するところ�
 - npm 10以上。npm workspacesを使い、依存はルートのpackage-lock.jsonで固定する。
 - Git。
 
-TypeScriptは5.9系を使う。今回のVue型チェックとNestのコンパイルで互換性を確認し、TypeScript 7への移行は含めない。Pinia・Vue Router・DB・idb・定期実行のパッケージは、使う機能のIssueで追加する。
+TypeScriptは5.9系を使う。今回のVue型チェックとNestのコンパイルで互換性を確認し、TypeScript 7への移行は含めない。Issue #6でDrizzle ORM 0.45.4・better-sqlite3 13.0.3・Drizzle Kit 0.31.11・tsx 4.23.15を追加した。[SQLiteの手順](database.md)を参照する。Pinia・Vue Router・idb・定期実行は後続Issueで追加する。
 
 .npmrcでNode.jsの要件を満たさないインストールを拒否する。Nest 12のES ModulesをJestが読み込むため、APIのテストコマンドだけでNodeのexperimental-vm-modulesを指定する。通常のアプリ起動には指定しない。
 
@@ -128,4 +128,4 @@ Windows、Node.js 24.21.0、npm 10.9.9でnpm ci、typecheck、test、buildを確
 
 PrimeVue導入後にwebの型チェック・Vitest 2件・ビルドを再確認した。ブラウザでCard・Button・Messageの描画、失敗後の再試行、390px幅の表示とMessageのpoliteな状態通知を確認し、画面参照を更新した。
 
-2026-10-09のnpm audit --omit=devは指摘0件。開発用依存を含む監査には、Jest系の間接依存sprintf-jsのDoSに起因するmoderateの指摘が20件残る。固定した版では修正版が提供されておらず、古いJestへの強制変更は行っていない。実行用依存には含まれない。後続のCI・依存更新で継続確認する。
+2026-10-09のnpm audit --omit=devは指摘0件。開発用依存を含む監査には、Jest系の間接依存sprintf-jsのDoSに起因するmoderateの指摘が20件残る。Issue #6でDrizzle Kitの開発用の間接依存esbuildに関する4件が加わり、合計24件となった。指摘対象はesbuildの開発サーバー機能で、DB生成コマンドはそのサーバーを起動しない。実行用依存の監査は引き続き0件。固定した版では修正版が提供されておらず、古いJestへの強制変更は行っていない。実行用依存には含まれない。後続のCI・依存更新で継続確認する。

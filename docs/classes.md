@@ -1,6 +1,6 @@
 # クラス図：データ・アプリ・サーバーの責任
 
-更新日：2026-10-09
+更新日：2026-10-12
 
 [READMEに戻る](../README.md) · [ルール](rules.md) · [仕分けのシーケンス](sequences.md) · [一覧のシーケンス](sequences-list.md) · [サーバーのシーケンス](sequences-server.md)
 
@@ -27,7 +27,7 @@ classDiagram
         +bool enabled
     }
     class Article {
-        +String articleId
+        +int articleId
         +String sourceId
         +Optional externalArticleId
         +String url
@@ -39,7 +39,7 @@ classDiagram
         +DateTime fetchedAt
     }
     class ArticleState {
-        +String articleId
+        +int articleId
         +bool interested
         +bool pinned
         +Optional lastOpenedAt
@@ -227,6 +227,8 @@ InterestResultSyncは、saveDraftの呼び出し順序と最終送信前の保�
 
 ## 3. サーバー側：記事取得・利用者状態・保持を分ける
 
+以下は後続機能を含む設計案。PR #31の実装済みメソッド・責務・依存関係は[保存基盤の構成図](storage-architecture.md)で確認する。登録・更新の手順はArticleService、保存操作はRepositoryの実装が担当する。
+
 ```mermaid
 classDiagram
     direction TB
@@ -245,9 +247,9 @@ classDiagram
     }
     class ArticleNormalizer {
         +normalize(source, rawItem) ／ 共通の記事形式へ変換する
-        +identityKey(article) ／ 同一記事の照合キーを作成する
     }
     class ArticleService {
+        +register(article) ／ 記事を検証して登録・内容更新をする
         +getSortingCandidates() ／ 仕分け対象を最大10件選ぶ
         +getArticlePage(kind, cursor, limit) ／ 一覧の一ページを返す
         +registerInterests(articleIds) ／ 気になるを一括登録する
@@ -263,7 +265,7 @@ classDiagram
     class ArticleRepository {
         <<interface>>
         +findByIdentity(key) ／ 照合キーで既存記事を探す
-        +updateMetadata(article) ／ 既存記事の内容を更新する
+        +updateContent(articleId, content) ／ タイトル・説明・著者を更新する
         +findSortingCandidates(limit) ／ DBから仕分け対象を取得する
         +findPage(kind, cursor, limit) ／ DBから一覧の一ページを取得する
         +saveInterests(articleIds) ／ 気になるをDBへ一括保存する
@@ -277,8 +279,8 @@ classDiagram
     RssAtomAdapter ..|> SourceAdapter
     ApiSourceAdapter ..|> SourceAdapter
     CollectionJob --> SourceAdapter : 取得先ごとに最新X件まで
-    CollectionJob --> ArticleNormalizer : 共通形式・照合キー
-    CollectionJob --> ArticleRepository : 既存の確認と内容更新
+    CollectionJob --> ArticleNormalizer : 共通形式
+    CollectionJob --> ArticleService : 記事の登録・内容更新
     CollectionJob --> RetentionService : 整理・新規保持
     ArticleService --> ArticleRepository : 一覧取得と状態変更
     RetentionService --> ArticleRepository : 保護・期限・件数の整合性
@@ -293,7 +295,7 @@ SourceConfigとRetentionSettingsは図1と同じデータ。定期実行の基�
 |---|---|
 | CollectionJob | 取得先を順に処理して新規追加・既存更新へ振り分ける。利用者のスワイプは扱わない |
 | SourceAdapter | 外部の取得方法の違いを吸収する。毎回最新側から最大X件を確認する |
-| ArticleNormalizer | タイトル・説明・日時などを共通形式へ変換し、同一記事の照合キーを作る |
+| ArticleNormalizer | タイトル・説明・日時などを共通形式へ変換する。識別条件はArticleServiceが作る |
 | ArticleService | アプリからの要求を処理する。仕分けの戻す履歴やカード位置を持たない |
 | RetentionService | 保護・期限・件数のルールで保持と削除を管理する。新規停止中も既存更新は止めない |
 | ArticleRepository | DBへの取得・保存と整合性の境界。利用者の状態を内容更新で消さず、保護された記事を削除しない |
