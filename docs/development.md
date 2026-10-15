@@ -2,7 +2,7 @@
 
 [README](../README.md) · [技術構成](architecture.md)
 
-Issue #5の範囲は、VueからNestの疎通確認APIへ接続するところまで。記事一覧・仕分け・DB・収集・認証・本番公開は後続Issueで追加する。今の画面は接続確認用で、採用した記事カードUIの実装ではない。
+現在はSQLiteと一覧API、全記事・気になる一覧画面まで実装している。[一覧画面の構成・確認結果](article-list-ui.md)を参照する。仕分け・収集・認証・本番公開は後続Issueで追加する。
 
 ## 必要な環境
 
@@ -23,9 +23,9 @@ npm ci
 npm run dev
 ```
 
-Nestの「Nest application successfully started」が出たら、http://127.0.0.1:5173/ を開く。「サーバーに接続できました。」が表示されれば、Vue → Axios → Viteのプロキシ → Nestの通信が成功している。ボタンで再確認できる。API起動前に開いた場合や接続失敗時はメッセージと再試行ボタンを表示する。APIが起動・復旧した後に再試行すると成功表示へ戻る。
+Nestの「Nest application successfully started」が出たら、http://127.0.0.1:5173/ を開く。全記事一覧が表示される。DBが空なら「まだ記事がありません」と表示する。更新ボタン・下に引く操作で先頭から読み直す。API起動前や接続失敗時は再試行ボタンを表示する。API復旧後の再試行で記事を取得できる。
 
-![スマホ幅で接続成功を確認した画面](images/bootstrap.jpg)
+![スマホ幅の記事一覧（架空の確認用記事）](images/article-list.jpg)
 
 APIだけを確認する場合は http://127.0.0.1:3000/api/health を開く。
 
