@@ -2,7 +2,7 @@
 
 [READMEに戻る](../README.md) · [保存構成の図](storage-architecture.md) · [データ方針](data-policy.md) · [開発手順](development.md)
 
-Issue #6で保存基盤を追加した。記事API・一覧画面・本番収集・保持期限による削除ジョブは後続Issueで実装する。
+Issue #6で保存基盤を追加した。[一覧取得API](article-list-api.md)はIssue #7で追加した。状態変更API・一覧画面・本番収集・保持期限による削除ジョブは後続Issueで実装する。
 
 ## 初期DBを作る
 
