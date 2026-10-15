@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, lt, or } from 'drizzle-orm';
 import { DatabaseService } from '../../infrastructure/database/database.service';
-import { articles, articleStates } from '../../infrastructure/database/schema';
+import { articles, articleStates, sources } from '../../infrastructure/database/schema';
 import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
 import type { ArticleState } from '../models/article-state';
 import { ArticleRepository, type StoredArticle } from '../application/article.repository';
 import { toArticle } from './article.mapper';
+import type { ArticleListEntry, ArticlePageQuery } from '../models/article-page';
 
 @Injectable()
 export class SqliteArticleRepository extends ArticleRepository {
@@ -68,6 +69,28 @@ export class SqliteArticleRepository extends ArticleRepository {
       .from(articles).innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
       .where(eq(articles.articleId, articleId)).get();
     return row ? { article: toArticle(row.article), state: row.state } : undefined;
+  }
+
+  // 一覧条件と続き位置をSQLへ変換し、指定件数を取得する。
+  findPage(query: ArticlePageQuery): ArticleListEntry[] {
+    const before = query.before;
+    const rows = this.database.db.select({
+      article: articles,
+      state: articleStates,
+      source: { sourceId: sources.sourceId, siteName: sources.siteName, iconUrl: sources.iconUrl },
+    }).from(articles)
+      .innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
+      .innerJoin(sources, eq(articles.sourceId, sources.sourceId))
+      .where(and(
+        query.kind === 'interested' ? eq(articleStates.interested, true) : undefined,
+        before ? or(
+          lt(articles.fetchedAt, before.fetchedAt),
+          and(eq(articles.fetchedAt, before.fetchedAt), lt(articles.articleId, before.articleId)),
+        ) : undefined,
+      ))
+      .orderBy(desc(articles.fetchedAt), desc(articles.articleId))
+      .limit(query.limit).all();
+    return rows.map((row) => ({ article: toArticle(row.article), state: row.state, source: row.source }));
   }
 
   // 指定された状態の項目を保存する。

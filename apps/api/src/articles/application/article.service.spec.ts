@@ -17,6 +17,7 @@ describe('記事の登録・更新の判断', () => {
       transaction: jest.fn((operation: () => unknown) => operation()) as jest.Mocked<ArticleRepository>['transaction'],
       findByIdentity: jest.fn(),
       findById: jest.fn(),
+      findPage: jest.fn().mockReturnValue([]),
       insert: jest.fn().mockReturnValue(saved),
       updateContent: jest.fn().mockReturnValue(saved),
       updateState: jest.fn(),
@@ -77,5 +78,35 @@ describe('記事の登録・更新の判断', () => {
   it('保存先の失敗を呼び出し側へ伝える', () => {
     repository.insert.mockImplementation(() => { throw new Error('保存失敗'); });
     expect(() => service.register(input)).toThrow('保存失敗');
+  });
+
+  it('一覧は一件多く取得し、最後に返す記事の位置を続きにする', () => {
+    const entries = [1, 2, 3].map((articleId) => ({
+      ...saved, article: { ...saved.article, articleId },
+      source: { sourceId: 'zenn', siteName: 'Zenn', iconUrl: null },
+    }));
+    repository.findPage.mockReturnValue(entries);
+    const page = service.getPage({ kind: 'all', limit: 2 });
+    expect(repository.findPage).toHaveBeenCalledWith({ kind: 'all', limit: 3 });
+    expect(page.articles).toEqual(entries.slice(0, 2));
+    expect(page.hasMore).toBe(true);
+    expect(page.nextPosition).toEqual({ fetchedAt, articleId: 2 });
+  });
+
+  it('件数ちょうどと空一覧では続きなしを返す', () => {
+    repository.findPage.mockReturnValue([{ ...saved, source: { sourceId: 'zenn', siteName: 'Zenn', iconUrl: null } }]);
+    expect(service.getPage({ kind: 'all', limit: 1 })).toMatchObject({ hasMore: false, nextPosition: null });
+    repository.findPage.mockReturnValue([]);
+    expect(service.getPage({ kind: 'interested', limit: 20 })).toEqual({ articles: [], hasMore: false, nextPosition: null });
+  });
+
+  it('不正な一覧条件はDBを呼ばずに拒否する', () => {
+    for (const limit of [0, -1, 21, 1.5, NaN, Infinity]) {
+      expect(() => service.getPage({ kind: 'all', limit })).toThrow();
+    }
+    expect(() => service.getPage({ kind: 'unknown' as 'all', limit: 20 })).toThrow();
+    expect(() => service.getPage({ kind: 'all', limit: 20, before: { fetchedAt: new Date('invalid'), articleId: 1 } })).toThrow();
+    expect(() => service.getPage({ kind: 'all', limit: 20, before: { fetchedAt, articleId: 0 } })).toThrow();
+    expect(repository.findPage).not.toHaveBeenCalled();
   });
 });
