@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 import Button from 'primevue/button';
 import Card from 'primevue/card';
 import Tag from 'primevue/tag';
@@ -10,7 +10,24 @@ import SourceBadge from './SourceBadge.vue';
 const props = defineProps<{ article: ArticleListItem }>();
 const titleId = useId();
 const expanded = ref(false);
-const canExpand = computed(() => props.article.title.length > 44 || (props.article.description?.length ?? 0) > 60);
+const copy = ref<HTMLElement | null>(null);
+const canExpand = ref(false);
+let observer: ResizeObserver | null = null;
+// 省略されている文面がある場合に、全文表示を可能にする。
+function measureOverflow(): void {
+  if (expanded.value) return;
+  canExpand.value = [...(copy.value?.querySelectorAll('h2,p') ?? [])]
+    .some((element) => element.scrollHeight > element.clientHeight + 1);
+}
+onMounted(() => {
+  observer = new ResizeObserver(measureOverflow);
+  if (copy.value) observer.observe(copy.value);
+  measureOverflow();
+});
+watch(() => [props.article.title, props.article.description, expanded.value], async () => {
+  await nextTick(); measureOverflow();
+});
+onUnmounted(() => observer?.disconnect());
 const date = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric' });
 const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle: 'short' });
 </script>
@@ -22,7 +39,7 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
         <div class="thumbnail-frame">
           <div class="thumbnail" :class="{ expanded }">
             <Tag v-if="article.state.pinned" value="ピン止め" severity="secondary" rounded class="pin-state" />
-            <div class="article-copy">
+            <div ref="copy" class="article-copy">
               <h2 :id="titleId">{{ article.title }}</h2>
               <p v-if="article.description" class="summary">{{ article.description }}</p>
             </div>
