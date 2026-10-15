@@ -3,6 +3,12 @@ import Aura from '@primeuix/themes/aura';
 
 // アプリで使う色と共通部品の見た目を定義する。
 export const uiTheme = definePreset(Aura, {
+  extend: {
+    discovery: {
+      background: '#f4f7f3', ink: '#243e32', muted: '#657569', line: '#dfe7df',
+      frameStart: '#79c9ed', frameEnd: '#b3a7ee', paper: '#ffffff',
+    },
+  },
   semantic: {
     primary: {
       50: '{green.50}', 100: '{green.100}', 200: '{green.200}',
@@ -20,3 +26,6 @@ export const uiTheme = definePreset(Aura, {
     },
   },
 });
+
+// 記事カードの共通の余白と外観を定義する。
+export const articleCardTokens = { body: { padding: '0', gap: '0' } };
