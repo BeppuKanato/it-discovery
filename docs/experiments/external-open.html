@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>外部タブの作成確認</title>
+<style>body{font:16px/1.8 sans-serif;max-width:760px;margin:32px auto;padding:0 20px}button{padding:12px;margin:8px}pre{white-space:pre-wrap;background:#f4f6f5;padding:20px}</style>
+<h1>外部タブの作成確認</h1>
+<p>設計確認用。本番アプリの機能ではありません。ボタン操作直後に空タブを作り、参照を切ってから移動します。新しいタブは確認後に閉じてください。</p>
+<button id="success">到達できるページを開く</button>
+<button id="unreachable">到達できないURLを開く</button>
+<button id="noopener">noopenerの戻り値を確認する</button>
+<pre id="result" role="status">未実行</pre>
+<script>
+// noopenerを直接渡す場合は成功でもnullになり、拒否と区別できないことを比較する。
+document.querySelector('#noopener').onclick = () => {
+  const tab = window.open('external-open-target.html', '_blank', 'noopener');
+  document.querySelector('#result').textContent = `noopener指定の戻り値: ${tab === null ? 'null（拒否とは断定しない）' : '参照あり'}`;
+};
+// 同期的なクリック処理内で作成する。awaitを挟んでユーザー操作の権限を失わない。
+function openArticle(url) {
+  const target = new URL(url, location.href);
+  if (!['http:', 'https:'].includes(target.protocol)) throw new Error('http(s)以外は開かない');
+  const tab = window.open('about:blank', '_blank');
+  if (!tab) {
+    document.querySelector('#result').textContent = 'タブ作成を受け付けなかった。既読にしない。';
+    return;
+  }
+  try {
+    // about:blankの間に逆向きの参照を切り、外部ページから元画面を操作できなくする。
+    tab.opener = null;
+    if (tab.opener !== null) throw new Error('openerを切断できない');
+    tab.location.replace(target.href);
+    document.querySelector('#result').textContent = 'タブ作成と遷移依頼を受け付けた。既読記録の対象。本文の到達・読了は保証しない。';
+  } catch {
+    tab.close();
+    document.querySelector('#result').textContent = '遷移依頼で例外。既読にしない。';
+  }
+}
+document.querySelector('#success').onclick = () => openArticle('external-open-target.html');
+document.querySelector('#unreachable').onclick = () => openArticle('http://127.0.0.1:1/unreachable');
+</script>
+</html>
+

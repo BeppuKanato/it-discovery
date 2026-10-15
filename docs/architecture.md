@@ -33,7 +33,7 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 | フロントの記法 | Single File Component＋Composition API、script setup | template・script・styleを同じ部品で読める。TypeScriptを使う |
 | フロントのビルド | Vite | Vueを開発し、配布用の静的ファイルを生成する |
 | UI部品 | PrimeVue 4のStyled Mode＋Auraを元にしたテーマ | 共通部品を使用箇所でimportし、色と外観をテーマ設定に集める。画面固有の配置はscoped CSSで扱う |
-| 画面の経路 | Vue Router | 全記事・気になる・仕分けの経路を管理する。途中遷移の可否はIssue #4で決める |
+| 画面の経路 | Vue Router | 全記事・気になる・仕分けの経路を管理する。仕分け中の一覧移動は設けず、途中終了で結果を確定する |
 | 共有する表示状態 | Pinia | 起動状態と記事の表示状態を管理する。画面内だけの状態はref／computedに留める |
 | HTTP通信 | Axiosを使うApiClient | axios.createでベースURL・タイムアウトを揃え、JSON変換とエラー整理をApiClientに集める。各画面で通信を直接書かない |
 | 端末の未送信保存 | IndexedDB＋idb | 非同期の端末保存をPromiseで扱い、PendingInterestStoreの実装内に閉じ込める |
@@ -198,7 +198,7 @@ packages/contractsには、画面とAPIで共有する要求・応答のTypeScri
 
 HTTPでは日時をISO形式の文字列、集合を配列に変換する。ブラウザ側のSetやサーバー側のDateインスタンスを、そのままJSONで共有できると扱わない。表示用データには出典の表示名・アイコンなど必要な情報を含め、サーバーの取得URLや秘密情報を含めない。
 
-共有型は実行時の検証を保証しない。HTTP入口のDTOとValidationPipeで検証し、契約型との食い違いを型チェックとAPIのテストで確認する。batchIdやrevisionをAPIにも送るか、部分成功・削除済みID・再送の応答形式はIssue #4・#9で決める。端末の版とサーバーの保存状態を同一視しない。
+共有型は実行時の検証を保証しない。HTTP入口のDTOとValidationPipeで検証し、契約型との食い違いを型チェックとAPIのテストで確認する。batchId＋revision、operationIdを送信し、保存結果を識別する。削除済みIDを記事別に返し、再送には同じ結果を返す（[操作方針](operation-policy.md)）。具体的なAPI型は#8・#9で定義する。端末の版とサーバーの保存状態を同一視しない。
 
 ## 読む順序と処理の例
 
@@ -211,7 +211,7 @@ HTTPでは日時をISO形式の文字列、集合を配列に変換する。ブ�
 | 起動する | useStartup → InterestResultSync → 未送信結果の確認・送信 → 成功後に通常操作 |
 | 定期収集する | @nestjs/schedule → CollectionJob → SourceAdapter → ArticleNormalizer → 既存更新またはRetentionService → Repository |
 
-非同期送信は画面の応答を待たせないための仕組みであり、ブラウザを閉じても必ず続く保証ではない。仕分けの端末保存・再送は既存ルールを維持し、一覧操作や既読にも適用するかはIssue #4で決める。
+非同期送信は画面の応答を待たせないための仕組みであり、ブラウザを閉じても必ず続く保証ではない。仕分けの端末保存・再送は既存ルールを維持し、一覧操作・既読も端末へ保存し、次回起動時に同期する。
 
 ## 開発・ビルド・配置の方針
 

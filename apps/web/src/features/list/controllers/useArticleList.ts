@@ -6,12 +6,15 @@ type LoadMode = 'initial' | 'refresh' | 'append';
 
 // 一覧取得・切り替え・追加・再試行と、古い応答の破棄を管理する。
 export function useArticleList(api: ArticleListApi) {
+// ComposableはVueの状態と操作をまとめる関数。呼び出しごとに独立した一覧状態を作る。
+  // refは変更を追跡する。shallowRefは配列の差し替えだけを追跡し、記事内部まで監視しない。
   const kind = ref<ArticleListKind>('all');
   const articles = shallowRef<ArticleListItem[]>([]);
   const nextCursor = ref<string | null>(null);
   const hasMore = ref(false);
   const loading = ref<LoadMode | null>(null);
   const error = ref<{ mode: LoadMode; message: string } | null>(null);
+  // 通信の中止だけでは届きかけの応答を防げないため、要求番号でも新旧を判定する。
   let generation = 0;
   let activeRequest: AbortController | null = null;
   let disposed = false;
@@ -22,6 +25,7 @@ export function useArticleList(api: ArticleListApi) {
     if (mode === 'append' && (loading.value !== null || !hasMore.value || !nextCursor.value)) return;
     const requestGeneration = ++generation;
     activeRequest?.abort();
+    // signalをAxiosへ渡すと、種類の変更や画面終了時に前の通信を中止できる。
     const controller = new AbortController();
     activeRequest = controller;
     const cursor = mode === 'append' ? nextCursor.value ?? undefined : undefined;
@@ -30,6 +34,7 @@ export function useArticleList(api: ArticleListApi) {
     try {
       const page = await api.getArticlePage({ kind: kind.value, limit: 20, ...(cursor ? { cursor } : {}) }, controller.signal);
       if (disposed || generation !== requestGeneration) return;
+      // Mapは同じIDの値を上書きする。追加時は既存の順番を保ち、重複したカードを増やさない。
       const unique = new Map<number, ArticleListItem>();
       if (mode === 'append') for (const article of articles.value) unique.set(article.articleId, article);
       for (const article of page.articles) unique.set(article.articleId, article);
@@ -37,6 +42,7 @@ export function useArticleList(api: ArticleListApi) {
       nextCursor.value = page.nextCursor;
       hasMore.value = page.hasMore;
     } catch {
+      // 通信失敗では記事やカーソルを変更しない。同じ続きを再取得できる状態を残す。
       if (disposed || generation !== requestGeneration) return;
       error.value = {
         mode,
@@ -44,6 +50,7 @@ export function useArticleList(api: ArticleListApi) {
           : mode === 'refresh' ? '一覧を更新できませんでした。' : '一覧を取得できませんでした。',
       };
     } finally {
+      // finallyは成功・失敗のどちらでも実行する。古い通信が新しい取得中表示を消さないよう守る。
       if (!disposed && generation === requestGeneration) {
         loading.value = null;
         activeRequest = null;
@@ -67,6 +74,7 @@ export function useArticleList(api: ArticleListApi) {
     return request('initial');
   }
 
+  // computedはここで使ったrefを追跡し、取得可否を常に現在の状態から求める。
   const canLoadMore = computed(() => hasMore.value && nextCursor.value !== null && loading.value === null && error.value === null);
 
   // 続きがあり、取得中でも失敗中でもない場合だけ追加取得する。
@@ -86,6 +94,7 @@ export function useArticleList(api: ArticleListApi) {
     activeRequest?.abort();
   }
 
+  // readonlyで外からの直接代入を防ぐ。状態変更は上の操作関数を通して行う。
   return {
     kind: readonly(kind), articles: readonly(articles), nextCursor: readonly(nextCursor),
     hasMore: readonly(hasMore), loading: readonly(loading), error: readonly(error), canLoadMore,
