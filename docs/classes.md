@@ -1,6 +1,6 @@
 # クラス図：データ・アプリ・サーバーの責任
 
-更新日：2026-10-12
+更新日：2026-10-15
 
 [READMEに戻る](../README.md) · [ルール](rules.md) · [仕分けのシーケンス](sequences.md) · [一覧のシーケンス](sequences-list.md) · [サーバーのシーケンス](sequences-server.md)
 
@@ -102,6 +102,7 @@ classDiagram
     class SortingController {
         +start() ／ 仕分けを開始する
         +decide(kind) ／ 判断を反映して次へ進む
+        +nextRead() ／ 既読カードの進行を記録する
         +undo() ／ 判断を取り消して前へ戻る
         +finish() ／ 最終結果を送信して終了する
     }
@@ -111,6 +112,7 @@ classDiagram
         -List~SortingDecision~ history
         -Set~String~ interestedIds
         +decide(kind) ／ 判断と履歴を記録する
+        +nextRead() ／ 既読カードの位置と履歴を進める
         +undo() ／ 直前の判断と位置を戻す
         +currentCard() ／ 現在のカードを取得する
         +canUndo() bool ／ 取り消し可能か判定する
@@ -137,6 +139,7 @@ classDiagram
         +change(articleId, field, value) ／ 状態の変更と送信順を管理する
         +confirm(operation) ／ 保存成功を確定する
         +reconcile(operation) ／ 不明な保存結果を照合する
+        +syncPending() ／ 一覧と既読の未送信操作を同期する
     }
     class ArticleOpeningService {
         +openArticle(article) ／ 元記事を外部で開く
@@ -153,6 +156,17 @@ classDiagram
         +loadPending() ／ 端末の未送信結果を読み出す
         +removeConfirmed(batchId, revision) ／ 保存確認済みの結果を削除する
     }
+    class PendingMutationStore {
+        <<interface>>
+        +save(operation) ／ 操作IDと変更を端末保存する
+        +loadPending() ／ 未送信操作を順に読み出す
+        +removeConfirmed(operationId) ／ 確認した操作だけを削除する
+    }
+    class DailySortingStore {
+        <<interface>>
+        +getDate() ／ 端末の日次判定日を取得する
+        +saveDate(date) ／ 日本時間の判定日を保存する
+    }
     class ApiClient {
         <<interface>>
         +getSortingCandidates() ／ 仕分け対象をサーバーへ要求する
@@ -162,9 +176,12 @@ classDiagram
         +setPinned(articleId, value) ／ ピン状態の保存を要求する
         +recordOpened(articleId, openedAt) ／ 既読と開いた日時を送信する
         +getArticleState(articleId) ／ 記事の確定状態を要求する
+        +getOperationResult(operationId) ／ 保存操作の処理結果を確認する
     }
 
     StartupCoordinator --> InterestResultSync : 起動時に同期
+    StartupCoordinator --> MutationCoordinator : 一覧と既読も同期
+    StartupCoordinator --> DailySortingStore : 同期後の日次判定
     SortingController ..> StartupCoordinator : 通常操作の開始条件
     ListController ..> StartupCoordinator : 通常操作の開始条件
     SortingController *-- SortingSession : その回だけ保持
@@ -176,7 +193,8 @@ classDiagram
     SortingController --> ArticleOpeningService : カードから開く
     ListController --> ArticleOpeningService : 一覧から開く
     MutationCoordinator --> ApiClient : 状態保存・確認
-    ArticleOpeningService --> ApiClient : 既読の非同期保存
+    ArticleOpeningService --> MutationCoordinator : 既読の端末保存と非同期送信
+    MutationCoordinator --> PendingMutationStore : 操作の端末保存
     InterestResultSync --> PendingInterestStore : 端末に結果を残す
     InterestResultSync --> ApiClient : 一括登録
 ```
@@ -199,7 +217,7 @@ StartupCoordinatorは、端末に未送信登録があれば同期成功まで�
 
 MutationCoordinatorは一覧の最新操作とサーバーの確定状態を分けて管理する。古い応答で新しい表示を戻さず、同じ記事・同じ項目への送信順も保つ。気になる解除で外した記事を失敗時に戻す表示処理はListControllerが担当し、気になる・ピン以外の状態まで戻さない。
 
-PendingInterestStoreはIndexedDB＋idb、ApiClientはAxiosを使う実装を用意する。一覧の未確定変更も端末へ永続保存するかは未決であり、このPendingInterestStoreへ自動的に含める仕様にはしない。
+PendingInterestStoreはIndexedDB＋idb、ApiClientはAxiosを使う実装を用意する。一覧と既読の未送信変更はPendingMutationStoreへ保存する。仕分け結果の版とは識別方法が異なるため、責任を分ける。
 
 ### コードの流れの例
 
@@ -311,21 +329,17 @@ applyRetentionは、保持ルールを満たすDB処理を一つの保存単位�
 | 記事・確定した気になる／既読／ピン | サーバーDB |
 | その回のカード位置・判断履歴 | アプリのメモリだけ |
 | 仕分けの未送信気になる結果 | 端末の保存領域。成功確認後に削除 |
-| 一覧の楽観的な表示・未確定操作 | アプリ側。端末への永続保存は未決 |
+| 一覧・既読の未送信操作 | operationIdと内容を端末へ保存。確認した操作だけ削除 |
+| 日次の自動仕分け判定 | 端末ごとの日本時間の日付 |
+| 処理済み要求の識別情報と結果 | サーバーDB。変更と同じ保存単位で記録し、再送時に再実行しない |
 | 取得先・保持期限・件数などの設定 | 配置は実装時に選ぶ。数値をコード中へ固定しない |
 
-サーバーへの送信は、仕分けでは開始時と終了時、一覧ではページ取得・状態変更のとき。既読は画面を待たせない非同期保存案。外部を開けたかの判定、アプリ中断時の送信継続は実装環境の調査が必要。
+サーバーへの送信は、仕分けでは開始時と終了時、一覧ではページ取得・状態変更のとき。既読は外部タブ作成と遷移依頼の受付後に端末保存し、非同期送信する。移動は保存完了を待たない。
 
-## 残る確認事項
+## 操作方針との対応
 
-- OPEN-02：仕分け中の一覧移動は必須にしない方向。中断操作を設けるか、設けた場合の保存・終了はまだ確定していない。
-- OPEN-03：元記事から同じカードへ戻ることは確定。既読カードでも右・左スワイプで次へ進む案を置いているが、操作と件数への数え方は要確認。
-- OPEN-05：外部を開けたかの判定。ArticleOpeningServiceの実装を選ぶときに調べる。
-- OPEN-12：起動時の再送と通常操作の競合は同期待機で避ける。端末保存失敗、送信前に削除済みの記事、成功確認できた結果の識別は引き続き設計する。
-- OPEN-14：一覧の未確定変更を、アプリ終了後も端末から再送するか。
-- Issue #3の日時・照合・具体値・ページング・収集と保持の保存単位は[data-policy](data-policy.md)で具体化済み。設定UI・APIと日次自動開始の実装責任は後続Issueで追加する。
-- OPEN-13・15・16：保存中の一覧操作、未送信登録と削除、日次の自動仕分けの詳細はIssue #4。
+[Issue #4の確定仕様](operation-policy.md)を反映した。SortingSessionは開始時のカードを固定し、既読カードの「次へ」も戻せる進行履歴として持つ。InterestResultSyncは端末保存失敗・送信中に判断を停止する状態を画面へ返す。完了画面だけでなく途中の終了要求も同じ最終保存へ進む。
 
-一時的な通信失敗への再試行と、登録対象が削除済みなど再試行だけでは直らないエラーは区別する。起動時の同期待機で後者をどう扱うかは未決であり、解決するまで無限再送する仕様にはしない。
+サーバーは一括登録のbatchId＋revision、一覧・既読のoperationIdを識別し、同じ要求には保存済みの同じ結果を返す。処理結果の保存は状態変更と同じトランザクションにする。削除済みの記事は再作成しない。具体的なAPI型・DB表名は#8・#9で実装する。
 
-この図でまず確認したいのは、仕分けの進行と保存が別であること、一覧と仕分けが記事を開く処理を共有すること、外部取得とDB保持の責任が分かれること。個々のメソッドやファイル配置は、この分担を確認してから実装に合わせて具体化する。
+図のクラス名は責任の表現であり、VueではComposableなどへ対応させる。今後の実装でも構文・データの流れを日本語コメントで説明する。複数端末の同時操作・仕分けのピン操作などは[ルールの未決事項](rules.md#未決事項)を参照。
