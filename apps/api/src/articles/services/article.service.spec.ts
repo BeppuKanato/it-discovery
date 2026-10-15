@@ -1,5 +1,5 @@
 import type { ArticleIdentity } from '../models/article';
-import { ArticleRepository, type StoredArticle } from './article.repository';
+import { ArticleRepository, type StoredArticle } from '../repositories/article.repository';
 import { ArticleService } from './article.service';
 
 describe('記事の登録・更新の判断', () => {

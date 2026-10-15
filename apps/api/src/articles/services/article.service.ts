@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ArticleContent, ArticleIdentity, ArticleInput } from '../models/article';
 import type { ArticleState } from '../models/article-state';
-import { ArticleRepository, type StoredArticle } from './article.repository';
+import { ArticleRepository, type StoredArticle } from '../repositories/article.repository';
 import {
   ARTICLE_PAGE_SIZE, InvalidArticlePageQueryError,
   type ArticlePage, type ArticlePageQuery,

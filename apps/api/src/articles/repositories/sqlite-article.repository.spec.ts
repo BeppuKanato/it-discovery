@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { articles, articleStates } from '../../infrastructure/database/schema';
-import { SqliteSettingsRepository } from '../../settings/persistence/sqlite-settings.repository';
-import { SettingsService } from '../../settings/application/settings.service';
-import { defaultSources } from '../../settings/application/default-sources';
+import { SqliteSettingsRepository } from '../../settings/repositories/sqlite-settings.repository';
+import { SettingsService } from '../../settings/services/settings.service';
+import { defaultSources } from '../../settings/models/default-sources';
 import { isProtected, isRead, isSortingCandidate } from '../models/article-state';
 import { SqliteArticleRepository } from './sqlite-article.repository';
-import { ArticleService } from '../application/article.service';
+import { ArticleService } from '../services/article.service';
 
 describe('SQLiteの記事と設定の永続保存', () => {
   let directory: string;

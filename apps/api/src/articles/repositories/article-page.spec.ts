@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { articles } from '../../infrastructure/database/schema';
-import { SettingsService } from '../../settings/application/settings.service';
-import { SqliteSettingsRepository } from '../../settings/persistence/sqlite-settings.repository';
-import { ArticleService } from '../application/article.service';
+import { SettingsService } from '../../settings/services/settings.service';
+import { SqliteSettingsRepository } from '../../settings/repositories/sqlite-settings.repository';
+import { ArticleService } from '../services/article.service';
 import type { ArticlePagePosition } from '../models/article-page';
 import { SqliteArticleRepository } from './sqlite-article.repository';
 

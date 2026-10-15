@@ -6,7 +6,7 @@ import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { ArticlePageResponse } from '@it-discovery/contracts';
 import { AppModule } from '../../app.module';
-import { ArticleService } from '../application/article.service';
+import { ArticleService } from '../services/article.service';
 
 describe('記事一覧のHTTP API', () => {
   let directory: string;

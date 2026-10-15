@@ -4,7 +4,7 @@ import { DatabaseService } from '../../infrastructure/database/database.service'
 import { articles, articleStates, sources } from '../../infrastructure/database/schema';
 import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
 import type { ArticleState } from '../models/article-state';
-import { ArticleRepository, type StoredArticle } from '../application/article.repository';
+import { ArticleRepository, type StoredArticle } from './article.repository';
 import { toArticle } from './article.mapper';
 import type { ArticleListEntry, ArticlePageQuery } from '../models/article-page';
 
