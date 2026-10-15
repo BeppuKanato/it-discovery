@@ -3,14 +3,18 @@ import { computed, ref, watch } from 'vue';
 import type { ArticleListItem } from '@it-discovery/contracts';
 
 const props = defineProps<{ source: ArticleListItem['source'] }>();
+// 読み込めない画像を繰り返し表示しないよう、失敗状態を部品内に保持する。
 const failed = ref(false);
+// computedは依存する値が変わると再計算される値。スプレッドで文字単位に分けて先頭を取る。
 const initial = computed(() => [...props.source.siteName][0] ?? '?');
+// 親から別の画像URLを受け取ったら、前の画像の失敗状態を解除する。
 watch(() => props.source.iconUrl, () => { failed.value = false; });
 </script>
 
 <template>
   <span class="source-badge" :title="source.siteName">
     <span class="source-icon" aria-hidden="true">
+      <!-- @errorは画像読み込み失敗時の処理。altは空にし、出典名の読み上げと重複させない。 -->
       <img v-if="source.iconUrl && !failed" :src="source.iconUrl" alt="" loading="lazy" @error="failed = true" />
       <span v-else>{{ initial }}</span>
     </span>

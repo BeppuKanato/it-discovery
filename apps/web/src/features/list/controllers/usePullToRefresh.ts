@@ -2,6 +2,7 @@ import { computed, readonly, ref } from 'vue';
 
 // 先頭での下向き操作だけを更新操作として扱う。
 export function usePullToRefresh(refresh: () => Promise<void>, canRefresh: () => boolean) {
+  // 指の座標そのものではなく、画面に表示する引っ張り量をVueの状態として持つ。
   const distance = ref(0);
   const ready = computed(() => distance.value >= 64);
   let start: { x: number; y: number } | null = null;
@@ -22,12 +23,14 @@ export function usePullToRefresh(refresh: () => Promise<void>, canRefresh: () =>
       cancel();
       return false;
     }
+    // 指の移動をそのまま使わず抵抗感を付ける。上限84px、更新の成立は64px以上。
     distance.value = Math.min(84, dy * 0.45);
     return dy > 8;
   }
 
   // 一定距離を越えて離した場合だけ先頭から更新する。
   async function finish(): Promise<void> {
+    // リセット前に成立を記録する。先にcancelするとdistanceが0になって判定できない。
     const shouldRefresh = ready.value && canRefresh();
     cancel();
     if (shouldRefresh) await refresh();
