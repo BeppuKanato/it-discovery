@@ -37,7 +37,7 @@ flowchart TB
 
 ServiceはSQLite、Drizzle、テーブル定義を参照しない。記事の必須条件や設定の範囲はServiceが確認する。DBの一意制約・外部キー制約は保存側で守る。
 
-DBとの形式変換はpersistence内に置く。記事ではmapperがDB専用の照合列を除く。設定ではSQLite RepositoryがDB内部の固定IDを除く。変換だけの小さな処理を必ず別クラスにするルールにはしない。
+DBとの形式変換はrepositories内に置く。記事ではmapperがDB専用の照合列を除く。設定ではSQLite RepositoryがDB内部の固定IDを除く。変換だけの小さな処理を必ず別クラスにするルールにはしない。
 
 ## 記事を登録・更新する順番
 
@@ -86,11 +86,11 @@ ModuleとDB操作コマンドは部品を組み立てる場所なので、具体
 
 ## コードを読む順序
 
-1. [記事の処理](../apps/api/src/articles/application/article.service.ts)：検証・識別・新規か更新かの判断をする。
-2. [記事の約束](../apps/api/src/articles/application/article.repository.ts)：検索・保存・トランザクションを定める。
-3. [SQLiteの記事操作](../apps/api/src/articles/persistence/sqlite-article.repository.ts)：約束をSQLiteで実現する。
-4. [設定の処理](../apps/api/src/settings/application/settings.service.ts)：検証と初期値の追加判断をする。
-5. [設定の約束](../apps/api/src/settings/application/settings.repository.ts)と[SQLite実装](../apps/api/src/settings/persistence/sqlite-settings.repository.ts)：設定の取得・保存をする。
+1. [記事の処理](../apps/api/src/articles/services/article.service.ts)：検証・識別・新規か更新かの判断をする。
+2. [記事の約束](../apps/api/src/articles/repositories/article.repository.ts)：検索・保存・トランザクションを定める。
+3. [SQLiteの記事操作](../apps/api/src/articles/repositories/sqlite-article.repository.ts)：約束をSQLiteで実現する。
+4. [設定の処理](../apps/api/src/settings/services/settings.service.ts)：検証と初期値の追加判断をする。
+5. [設定の約束](../apps/api/src/settings/repositories/settings.repository.ts)と[SQLite実装](../apps/api/src/settings/repositories/sqlite-settings.repository.ts)：設定の取得・保存をする。
 6. [DBの共通基盤](../apps/api/src/infrastructure/database/database.service.ts)：接続・SQL適用・切断をする。
 
 ## テストの分担

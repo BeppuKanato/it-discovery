@@ -75,7 +75,7 @@ stateは対応する記事の中に入れ、記事IDとの対応を保つ。日�
 
 ```mermaid
 flowchart TB
-    C[ArticlesHttpController<br/>HTTPの受付と応答をする]
+    C[ArticlesController<br/>HTTPの受付と応答をする]
     P[ArticlePageQueryPipe<br/>文字列を検索条件へ変換する]
     S[ArticleService<br/>条件を検証し続きを判断する]
     R[ArticleRepository<br/>検索の約束を定める]
@@ -90,7 +90,9 @@ flowchart TB
     Q --> D
 ```
 
-HTTPの形式とJSONへの変換はhttp内に置く。ServiceはHTTP・カーソル文字列・SQLを知らず、Dateと数値の続き位置を扱う。SQLite実装は条件をSQLへ変換し、記事・状態・表示用の取得元を一つの検索で取得する。全件取得後の切り出しや記事ごとの追加検索は行わない。
+HTTPの形式とJSONへの変換はcontrollers内に置く。ServiceはHTTP・カーソル文字列・SQLを知らず、Dateと数値の続き位置を扱う。SQLite実装は条件をSQLへ変換し、記事・状態・表示用の取得元を一つの検索で取得する。全件取得後の切り出しや記事ごとの追加検索は行わない。
+
+機能内のフォルダ名を役割に揃えるため、ControllerとHTTPの補助処理はcontrollersにまとめる。記事のServiceはservices、Repositoryの抽象とSQLite実装はrepositoriesに置く。articles.controller.tsのファイル名にhttpは付けず、所属するフォルダで役割を表す。
 
 ## 実行する順番
 
@@ -117,13 +119,13 @@ sequenceDiagram
 ## 確認するファイル
 
 - [内部の一覧データ](../apps/api/src/articles/models/article-page.ts)：種類・件数・続き位置を表す。
-- [Service](../apps/api/src/articles/application/article.service.ts)：getPageで条件と続きの判断をする。
-- [Repositoryの約束](../apps/api/src/articles/application/article.repository.ts)：findPageで種類・位置・件数を指定する。
-- [SQLite実装](../apps/api/src/articles/persistence/sqlite-article.repository.ts)：WHERE・ORDER BY・LIMITを使う。
-- [HTTP Controller](../apps/api/src/articles/articles-http.controller.ts)：受付と入力エラーのHTTP変換をする。
-- [Query Pipe](../apps/api/src/articles/http/article-page-query.pipe.ts)：HTTPパラメータを変換する。
-- [カーソル](../apps/api/src/articles/http/article-cursor.ts)：位置を文字列へ変換し、復元する。
-- [応答変換](../apps/api/src/articles/http/article-page.response.ts)：表示に必要な値だけを返す。
+- [Service](../apps/api/src/articles/services/article.service.ts)：getPageで条件と続きの判断をする。
+- [Repositoryの約束](../apps/api/src/articles/repositories/article.repository.ts)：findPageで種類・位置・件数を指定する。
+- [SQLite実装](../apps/api/src/articles/repositories/sqlite-article.repository.ts)：WHERE・ORDER BY・LIMITを使う。
+- [HTTP Controller](../apps/api/src/articles/controllers/articles.controller.ts)：受付と入力エラーのHTTP変換をする。
+- [Query Pipe](../apps/api/src/articles/controllers/article-page-query.pipe.ts)：HTTPパラメータを変換する。
+- [カーソル](../apps/api/src/articles/controllers/article-cursor.ts)：位置を文字列へ変換し、復元する。
+- [応答変換](../apps/api/src/articles/controllers/article-page.response.ts)：表示に必要な値だけを返す。
 - [API共有型](../packages/contracts/src/articles.ts)：ブラウザと共有するJSONの型を定める。
 
 ## 動作確認

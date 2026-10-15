@@ -56,11 +56,13 @@ Drizzle ORMはテーブル定義と検索・更新をTypeScriptで表す層、be
 
 機能のまとまりを優先し、必要なファイルを各Issueで追加する。空のクラスを先に大量作成しない。
 
+機能内はcontrollers・services・repositories・modelsで役割を表す。controllersはHTTPの受付と形式変換、servicesは判断と手順、repositoriesは保存・検索の抽象と実装、modelsはデータ型などを置く。フォルダを移しても依存の向きは変えず、ServiceはRepositoryの抽象を参照する。
+
 機能別構成の中をレイヤードで整理し、外部接続にはポートとアダプターの考え方を使う。Serviceが判断と手順を持ち、DBの検索・保存はRepositoryの抽象を通して頼む。具体的なSQLite実装はModuleやコマンドで組み立てる。各ModuleはServiceを公開し、他の機能から内部Repositoryを直接使わない。オニオンへの全面的な分割は、実装を読んで必要性を確認してから検討する。
 
 PR #31の実装済み範囲は[保存基盤の構成図](storage-architecture.md)で説明する。依存関係と実行順序を別図にし、未実装の収集・仕分け・保持処理と区別する。
 
-Issue #7では[記事一覧API](article-list-api.md)を追加した。HTTPの形式は専用Pipe、一覧の条件と続き判定はArticleService、SQLの絞り込みはSQLite Repository、JSONの変換はhttp内で担当する。今回は単純なクエリ文字列とカーソルを扱うNestの専用Pipeを使い、class-validator／class-transformerの導入は必要なHTTP入力の実装時に行う。
+Issue #7では[記事一覧API](article-list-api.md)を追加した。HTTPの形式は専用Pipe、一覧の条件と続き判定はArticleService、SQLの絞り込みはSQLite Repository、JSONの変換はcontrollers内で担当する。今回は単純なクエリ文字列とカーソルを扱うNestの専用Pipeを使い、class-validator／class-transformerの導入は必要なHTTP入力の実装時に行う。
 
 ```text
 apps/
@@ -97,29 +99,32 @@ apps/
       app.module.ts
       articles/
         articles.module.ts
-        articles-http.controller.ts # 一覧取得のHTTP入口
-        http/
+        controllers/
+          articles.controller.ts    # 一覧取得のHTTP入口
           article-page-query.pipe.ts # HTTPパラメータの形式を確認
           article-cursor.ts         # 文字列と続き位置の変換
           article-page.response.ts  # 内部データとJSONの変換
-        application/
+        services/
           article.service.ts       # 検証・識別・登録更新の手順
+        repositories/
           article.repository.ts    # Repositoryの約束・DIトークン
+          sqlite-article.repository.ts
+          article.mapper.ts        # DBの行を共通形式へ変換
         models/
           article.ts
           article-state.ts
           article-page.ts          # 検索条件・続き位置・一覧結果
-        persistence/
-          sqlite-article.repository.ts
-          article.mapper.ts        # DBの行を共通形式へ変換
       settings/
         settings.module.ts
-        application/
+        services/
           settings.service.ts      # 検証・初期設定の追加判断
+        repositories/
           settings.repository.ts   # 設定の取得・保存の約束
+          sqlite-settings.repository.ts
+        models/
+          source-config.ts
           default-sources.ts
-        models/source-config.ts
-        persistence/sqlite-settings.repository.ts
+      health/controllers/health.controller.ts
       collection/
         collection.module.ts
         collection.job.ts
@@ -170,10 +175,10 @@ Issue #6ではarticles・settingsと共通DB基盤を追加した。Issue #7で�
 | InterestResultSync | web/src/services/interest-result-sync.ts | 途中保存・終了送信・起動時再送を担当する |
 | PendingInterestStore | webの保存契約、IndexedDB実装 | 未送信結果を読み書きする |
 | ApiClient | web/src/infrastructure/api/api-client.ts | AxiosでNestのAPIを呼ぶ |
-| HTTPの入口（図では省略） | api/src/articles/articles-http.controller.tsとhttp/ | Pipeによる入力変換・Service呼び出し・HTTP応答を担当する |
-| ArticleService | api/src/articles/application/article.service.ts | 一覧・仕分け対象・登録・既読の処理を担当する |
-| ArticleRepository | api/src/articles/application/article.repository.ts | DB操作の契約を定義する |
-| ArticleRepositoryのSQLite実装 | api/src/articles/persistence/sqlite-article.repository.ts | Drizzleで検索・保存・保持処理を実行する |
+| HTTPの入口（図では省略） | api/src/articles/controllers/ | Pipeによる入力変換・Service呼び出し・HTTP応答を担当する |
+| ArticleService | api/src/articles/services/article.service.ts | 一覧・仕分け対象・登録・既読の処理を担当する |
+| ArticleRepository | api/src/articles/repositories/article.repository.ts | DB操作の契約を定義する |
+| ArticleRepositoryのSQLite実装 | api/src/articles/repositories/sqlite-article.repository.ts | Drizzleで検索・保存・保持処理を実行する |
 | CollectionJob | api/src/collection/collection.job.ts | 定期収集を一回進める |
 | SourceAdapter | api/src/collection/adapters/source-adapter.ts | 情報源から取得する共通の契約を定義する |
 | RssAtomAdapter | api/src/collection/adapters/rss-atom.adapter.ts | RSS・Atomを取得する |
@@ -199,7 +204,7 @@ HTTPでは日時をISO形式の文字列、集合を配列に変換する。ブ�
 
 | 操作 | コードを辿る順序 |
 |---|---|
-| 一覧を見る | ArticleListPage → useArticleList → ApiClient → ArticlesHttpController → ArticleService → SQLiteArticleRepository |
+| 一覧を見る | ArticleListPage → useArticleList → ApiClient → ArticlesController → ArticleService → SQLiteArticleRepository |
 | 一覧で気になるを変える | useArticleList → 表示状態の更新 → MutationCoordinator → ApiClient → HTTP入口 → ArticleService → Repository |
 | スワイプ・戻す | SortingPage → useSorting → SortingSession → InterestResultSyncの端末保存。毎回のサーバー要求はない |
 | 仕分けを終了する | useSorting → 最終端末保存の確認 → InterestResultSync → ApiClient → ArticleServiceの一括登録 |

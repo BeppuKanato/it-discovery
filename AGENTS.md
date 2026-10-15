@@ -20,8 +20,9 @@
 ## 責務と説明の方針
 
 - 機能を最上位にまとめる。DB接続などの共通基盤はinfrastructureに置く。特定の機能のルールは、その機能が持つ。
-- Serviceが入力の共通条件・アプリの判断・処理手順を担当し、検索・保存はapplication内のRepositoryの抽象へ頼む。
-- persistenceはDB操作とDB向けの形式変換を担当する。記事や設定の共通検証をDB実装ごとに重複させない。
+- 機能内はcontrollers・services・repositories・modelsで役割を表す。ControllerとHTTP用の補助処理はcontrollers、Repositoryの抽象と具体実装はrepositoriesにまとめる。必要なフォルダだけ作る。
+- Serviceが入力の共通条件・アプリの判断・処理手順を担当し、検索・保存はrepositories内のRepositoryの抽象へ頼む。
+- Repositoryの具体実装はDB操作とDB向けの形式変換を担当する。記事や設定の共通検証をDB実装ごとに重複させない。
 - 各Moduleは利用側へServiceを公開する。具体的なRepositoryの参照は、機能内の実装、組み立て部分、テストに留める。
 - SQLiteの同期トランザクションに外部通信や非同期処理を入れない。検索から保存まで必要な整合性を守る。
 - オニオンへの全面的な分割や、未実装の機能の抽象を先に大量作成しない。具体的な複雑さに応じて分割する。
