@@ -1,11 +1,11 @@
 import { existsSync } from 'node:fs';
 import { loadEnvFile } from 'node:process';
 import { DatabaseService } from '../infrastructure/database/database.service';
-import { SqliteSettingsRepository } from '../settings/persistence/sqlite-settings.repository';
-import { SettingsService } from '../settings/application/settings.service';
-import { defaultSources } from '../settings/application/default-sources';
-import { SqliteArticleRepository } from '../articles/persistence/sqlite-article.repository';
-import { ArticleService } from '../articles/application/article.service';
+import { SqliteSettingsRepository } from '../settings/repositories/sqlite-settings.repository';
+import { SettingsService } from '../settings/services/settings.service';
+import { defaultSources } from '../settings/models/default-sources';
+import { SqliteArticleRepository } from '../articles/repositories/sqlite-article.repository';
+import { ArticleService } from '../articles/services/article.service';
 
 if (existsSync('.env')) loadEnvFile('.env');
 const command = process.argv[2];

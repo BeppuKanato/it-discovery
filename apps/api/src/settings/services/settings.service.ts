@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { CollectionSettings, SourceConfig } from '../models/source-config';
-import { SettingsRepository } from './settings.repository';
-import { defaultSources } from './default-sources';
+import { SettingsRepository } from '../repositories/settings.repository';
+import { defaultSources } from '../models/default-sources';
 
 export const defaultSettings: CollectionSettings = {
   unreadRetentionDays: 30,

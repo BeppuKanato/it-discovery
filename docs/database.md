@@ -2,7 +2,7 @@
 
 [READMEに戻る](../README.md) · [保存構成の図](storage-architecture.md) · [データ方針](data-policy.md) · [開発手順](development.md)
 
-Issue #6で保存基盤を追加した。記事API・一覧画面・本番収集・保持期限による削除ジョブは後続Issueで実装する。
+Issue #6で保存基盤を追加した。[一覧取得API](article-list-api.md)はIssue #7で追加した。状態変更API・一覧画面・本番収集・保持期限による削除ジョブは後続Issueで実装する。
 
 ## 初期DBを作る
 
@@ -47,13 +47,13 @@ npm run db:migrate -w @it-discovery/api
 
 | ファイル | 役割 |
 |---|---|
-| `src/articles/application/article.service.ts` | 記事の検証・識別・登録更新の手順 |
-| `src/articles/application/article.repository.ts` | 記事の検索・保存・トランザクションの約束 |
-| `src/articles/persistence/sqlite-article.repository.ts` | Drizzleによる記事と状態の保存 |
-| `src/articles/persistence/article.mapper.ts` | DBの行から照合用項目を除き記事形式へ変換 |
-| `src/settings/application/settings.service.ts` | 設定の検証と未登録の初期値の追加判断 |
-| `src/settings/application/settings.repository.ts` | 設定の取得・保存の約束 |
-| `src/settings/persistence/sqlite-settings.repository.ts` | 取得先と保持・収集設定の保存 |
+| `src/articles/services/article.service.ts` | 記事の検証・識別・登録更新の手順 |
+| `src/articles/repositories/article.repository.ts` | 記事の検索・保存・トランザクションの約束 |
+| `src/articles/repositories/sqlite-article.repository.ts` | Drizzleによる記事と状態の保存 |
+| `src/articles/repositories/article.mapper.ts` | DBの行から照合用項目を除き記事形式へ変換 |
+| `src/settings/services/settings.service.ts` | 設定の検証と未登録の初期値の追加判断 |
+| `src/settings/repositories/settings.repository.ts` | 設定の取得・保存の約束 |
+| `src/settings/repositories/sqlite-settings.repository.ts` | 取得先と保持・収集設定の保存 |
 | `src/settings/settings.module.ts` | 設定ServiceとSQLite実装を接続し初期化 |
 | `src/infrastructure/database/database.service.ts` | 接続・SQL適用・終了時の切断 |
 | `src/infrastructure/database/schema.ts` | 取得先・記事・状態・設定のテーブルと制約 |

@@ -1,5 +1,6 @@
 import type { Article, ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
 import type { ArticleState } from '../models/article-state';
+import type { ArticleListEntry, ArticlePageQuery } from '../models/article-page';
 
 export interface StoredArticle {
   article: Article;
@@ -17,6 +18,8 @@ export abstract class ArticleRepository {
   abstract updateContent(articleId: number, content: ArticleContent): StoredArticle;
   // 記事と確定状態を取得する。
   abstract findById(articleId: number): StoredArticle | undefined;
+  // 指定位置より古い記事を取得日時とIDの降順で取得する。
+  abstract findPage(query: ArticlePageQuery): ArticleListEntry[];
   // 指定された状態の項目だけを保存する。
   abstract updateState(articleId: number, patch: Partial<ArticleState>): StoredArticle | undefined;
 }

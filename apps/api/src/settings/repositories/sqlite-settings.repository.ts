@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { appSettings, sources } from '../../infrastructure/database/schema';
 import type { CollectionSettings, SourceConfig } from '../models/source-config';
-import { SettingsRepository } from '../application/settings.repository';
+import { SettingsRepository } from './settings.repository';
 
 @Injectable()
 export class SqliteSettingsRepository extends SettingsRepository {

@@ -1,7 +1,7 @@
 import type { CollectionSettings, SourceConfig } from '../models/source-config';
-import { SettingsRepository } from './settings.repository';
+import { SettingsRepository } from '../repositories/settings.repository';
 import { SettingsService, defaultSettings } from './settings.service';
-import { defaultSources } from './default-sources';
+import { defaultSources } from '../models/default-sources';
 
 class MemorySettingsRepository extends SettingsRepository {
   readonly sources: SourceConfig[] = [];

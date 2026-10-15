@@ -227,7 +227,7 @@ InterestResultSyncは、saveDraftの呼び出し順序と最終送信前の保�
 
 ## 3. サーバー側：記事取得・利用者状態・保持を分ける
 
-以下は後続機能を含む設計案。PR #31の実装済みメソッド・責務・依存関係は[保存基盤の構成図](storage-architecture.md)で確認する。登録・更新の手順はArticleService、保存操作はRepositoryの実装が担当する。
+以下は後続機能を含む設計案。PR #31の実装済み範囲は[保存基盤の構成図](storage-architecture.md)、Issue #7の一覧取得は[一覧APIの構成図](article-list-api.md)で確認する。登録・更新の手順と一覧の続き判定はArticleService、保存・検索操作はRepositoryの実装が担当する。
 
 ```mermaid
 classDiagram
