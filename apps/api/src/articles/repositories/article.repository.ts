@@ -18,6 +18,10 @@ export abstract class ArticleRepository {
   abstract updateContent(articleId: number, content: ArticleContent): StoredArticle;
   // 記事と確定状態を取得する。
   abstract findById(articleId: number): StoredArticle | undefined;
+  // 指定された記事と状態をまとめて取得する。存在しないIDは結果に含めない。順序は保証しない。
+  abstract findByIds(articleIds: number[]): StoredArticle[];
+  // 指定された記事の気になる登録だけをまとめて変更する。空配列では何もしない。
+  abstract registerInterests(articleIds: number[]): void;
   // 指定位置より古い記事を取得日時とIDの降順で取得する。
   abstract findPage(query: ArticlePageQuery): ArticleListEntry[];
   // 未読・気になる未登録・ピンなしを取得日時とIDの降順で取得する。

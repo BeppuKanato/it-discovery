@@ -37,22 +37,20 @@ export class ArticleSortingService {
         }
         return previous.result;
       }
-      const results: InterestBatchResult['results'] = [];
-      // for...ofは配列の添字ではなく、記事IDそのものを一つずつ取り出す。
-      for (const articleId of articleIds) {
-        const current = this.articles.findById(articleId);
-        if (!current) {
-          results.push({ articleId, status: 'missing' });
-          continue;
-        }
-        // 開始後に既読やピンが変わっていても登録可能。その2項目は更新しない。
-        // 登録済みなら書き込みも不要。送られなかったIDを解除する処理は行わない。
-        if (!current.state.interested) {
-          const saved = this.articles.updateState(articleId, { interested: true });
-          if (!saved) throw new Error('Article disappeared during sorting transaction');
-        }
-        results.push({ articleId, status: 'saved' });
-      }
+      // 対象を一度に取得する。空集合はDBに問い合わせず、空の結果だけを記録する。
+      const existingArticles = articleIds.length > 0 ? this.articles.findByIds(articleIds) : [];
+      // Setは存在確認に使うIDの集合。Repositoryの返却順に依存せず、入力の各IDを判定する。
+      const existingIds = new Set(existingArticles.map((entry) => entry.article.articleId));
+      // filterで未登録の記事だけに絞り、mapで更新対象のID配列へ変換する。
+      // 開始後に既読やピンが変わっていても登録可能。その2項目は更新しない。
+      const idsToRegister = existingArticles.filter((entry) => !entry.state.interested)
+        .map((entry) => entry.article.articleId);
+      if (idsToRegister.length > 0) this.articles.registerInterests(idsToRegister);
+      // mapは記事別の結果を組み立てるだけで、ループ内でDBへアクセスしない。
+      // 登録済みもsaved、取得できなかったIDはmissing。送られなかったIDは変更しない。
+      const results: InterestBatchResult['results'] = articleIds.map((articleId) => ({
+        articleId, status: existingIds.has(articleId) ? 'saved' : 'missing',
+      }));
       const result = { batchId: id, revision, results };
       // 途中の更新や、この結果記録で例外になれば全て取り消す。missingは例外ではなく確定結果。
       this.batches.insert({ batchId: id, revision, requestKey, result });

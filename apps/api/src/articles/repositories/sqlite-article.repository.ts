@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { articles, articleStates, sources } from '../../infrastructure/database/schema';
 import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
@@ -69,6 +69,23 @@ export class SqliteArticleRepository extends ArticleRepository {
       .from(articles).innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
       .where(eq(articles.articleId, articleId)).get();
     return row ? { article: toArticle(row.article), state: toArticleState(row.state) } : undefined;
+  }
+
+  // INは指定されたIDのいずれかに一致する条件。記事ごとのSELECTを一つにまとめる。
+  findByIds(articleIds: number[]): StoredArticle[] {
+    if (articleIds.length === 0) return [];
+    const rows = this.database.db.select({ article: articles, state: articleStates })
+      .from(articles).innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
+      .where(inArray(articles.articleId, articleIds)).all();
+    return rows.map((row) => ({ article: toArticle(row.article), state: toArticleState(row.state) }));
+  }
+
+  // 気になるだけを一つのUPDATEで登録する。既読・ピンには触れず、更新後の再取得もしない。
+  // Serviceのtransaction内から呼ぶことで、対象の取得と結果記録も含めて一括確定する。
+  registerInterests(articleIds: number[]): void {
+    if (articleIds.length === 0) return;
+    this.database.db.update(articleStates).set({ interested: true })
+      .where(inArray(articleStates.articleId, articleIds)).run();
   }
 
   // 一覧条件と続き位置をSQLへ変換し、指定件数を取得する。

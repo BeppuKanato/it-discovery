@@ -121,15 +121,16 @@ sequenceDiagram
     D-->>S: 保存済みの版・比較キー・結果
     S->>S: 同じ要求なら結果を返し、違う要求なら競合
   else 未記録
-    loop 最大10件
-      S->>D: 現在の記事を取得
-      S->>D: 保持中なら気になる登録、記事なしはmissingとして記録
-    end
+    S->>D: 対象記事をまとめて取得（空なら省略）
+    S->>S: 未登録の記事IDと記事別のsaved・missingを判定
+    S->>D: 未登録の記事を一つのUPDATEで気になる登録（0件なら省略）
     S->>D: 記事別の結果と版・比較キーを保存
   end
   S->>D: 成功はCOMMIT、例外はROLLBACK
   S-->>C: 記事別の結果
 ```
+
+記事の取得は`findByIds`のSELECT一回、変更は`registerInterests`のUPDATE一回にまとめる。記事ごとのループではDBへアクセスしない。登録済みの記事は更新対象から除き、結果の順序はRepositoryの返却順に依存させない。
 
 missingは例外ではない。有効な登録と結果記録は一つのトランザクションで確定し、DB障害では途中の変更も全て取り消す。二つのRepositoryは同じDatabaseServiceの接続を使う。同期トランザクション内に通信やawaitは入れない。
 

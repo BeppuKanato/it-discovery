@@ -17,7 +17,7 @@ describe('記事の登録・更新の判断', () => {
       transaction: jest.fn((operation: () => unknown) => operation()) as jest.Mocked<ArticleRepository>['transaction'],
       findByIdentity: jest.fn(),
       findById: jest.fn(),
-      findSortingCandidates: jest.fn(), findPage: jest.fn().mockReturnValue([]),
+      findByIds: jest.fn(), registerInterests: jest.fn(), findSortingCandidates: jest.fn(), findPage: jest.fn().mockReturnValue([]),
       insert: jest.fn().mockReturnValue(saved),
       updateContent: jest.fn().mockReturnValue(saved),
       updateState: jest.fn(),
