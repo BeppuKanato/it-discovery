@@ -1,11 +1,13 @@
 import { computed, readonly, ref, shallowRef } from 'vue';
 import type { ArticleListItem, ArticleListKind } from '@it-discovery/contracts';
 import type { ArticleListApi } from '../models/article-list-api';
+import type { StateProjection } from '../../article-state/models/state-sync';
+import type { Ref } from 'vue';
 
 type LoadMode = 'initial' | 'refresh' | 'append';
 
 // 一覧取得・切り替え・追加・再試行と、古い応答の破棄を管理する。
-export function useArticleList(api: ArticleListApi) {
+export function useArticleList(api: ArticleListApi, changes?: StateProjection, changesRevision?: Ref<number>) {
 // ComposableはVueの状態と操作をまとめる関数。呼び出しごとに独立した一覧状態を作る。
   // refは変更を追跡する。shallowRefは配列の差し替えだけを追跡し、記事内部まで監視しない。
   const kind = ref<ArticleListKind>('all');
@@ -19,11 +21,28 @@ export function useArticleList(api: ArticleListApi) {
   let activeRequest: AbortController | null = null;
   let disposed = false;
 
+  // 取得したカードの情報へ希望状態を重ね、気になる解除は保存を待たず表示から外す。
+  // 元の配列を消さないため、拒否が確定した場合は対象カードだけ自然に復元できる。
+  const visibleArticles = computed(() => {
+    void changesRevision?.value;
+    const unique = new Map(articles.value.map((article) => [article.articleId, article]));
+    if (kind.value === 'interested') {
+      for (const article of changes?.supplements() ?? []) {
+        if (!unique.has(article.articleId)) unique.set(article.articleId, article);
+      }
+    }
+    return [...unique.values()].map((article) => changes?.project(article) ?? (changes ? null : article))
+      .filter((article): article is ArticleListItem => article !== null && (kind.value === 'all' || article.state.interested))
+      .sort((a, b) => Date.parse(b.fetchedAt) - Date.parse(a.fetchedAt) || b.articleId - a.articleId);
+  });
+
   // 現在の要求だけを反映し、失敗時は表示済みデータを維持する。
   async function request(mode: LoadMode): Promise<void> {
     if (disposed) return;
     if (mode === 'append' && (loading.value !== null || !hasMore.value || !nextCursor.value)) return;
     const requestGeneration = ++generation;
+    // 取得開始時点を記録し、取得中に確定した変更を遅い一覧応答で巻き戻さない。
+    const readVersion = changes?.version ?? 0;
     activeRequest?.abort();
     // signalをAxiosへ渡すと、種類の変更や画面終了時に前の通信を中止できる。
     const controller = new AbortController();
@@ -34,6 +53,7 @@ export function useArticleList(api: ArticleListApi) {
     try {
       const page = await api.getArticlePage({ kind: kind.value, limit: 20, ...(cursor ? { cursor } : {}) }, controller.signal);
       if (disposed || generation !== requestGeneration) return;
+      changes?.accept(page.articles, readVersion);
       // Mapは同じIDの値を上書きする。追加時は既存の順番を保ち、重複したカードを増やさない。
       const unique = new Map<number, ArticleListItem>();
       if (mode === 'append') for (const article of articles.value) unique.set(article.articleId, article);
@@ -96,7 +116,7 @@ export function useArticleList(api: ArticleListApi) {
 
   // readonlyで外からの直接代入を防ぐ。状態変更は上の操作関数を通して行う。
   return {
-    kind: readonly(kind), articles: readonly(articles), nextCursor: readonly(nextCursor),
+    kind: readonly(kind), articles: changes ? visibleArticles : readonly(articles), nextCursor: readonly(nextCursor),
     hasMore: readonly(hasMore), loading: readonly(loading), error: readonly(error), canLoadMore,
     refresh, changeKind, loadMore, retry, dispose,
   };
