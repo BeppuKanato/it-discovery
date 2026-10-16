@@ -6,9 +6,13 @@ import type { UnfinishedArticleChange, StateField } from './article-change-contr
 // 未完了とは、送信前・送信中・結果不明・再試行待ち・端末記録の削除待ちを含む。
 export interface TrackedArticleChange {
   record: UnfinishedArticleChange;
+  // 端末への保存が完了し、送信してよいか。
   persisted: boolean;
+  // 次の送信前に、同じ操作IDの処理結果を照会するか。
   lookup: boolean;
+  // 結果は確定したか。trueでも端末記録の削除まではキューに残る。
   settled: boolean;
+  // 自動再試行では解消できず、利用者の確認を待っているか。
   blocked: boolean;
   attempts: number;
 }

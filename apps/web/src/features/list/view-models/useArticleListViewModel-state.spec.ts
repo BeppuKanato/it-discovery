@@ -1,3 +1,4 @@
+import { createArticleListModel } from '../models/article-list.model';
 import { useArticleDataStore } from '../../articles/models/article-data.store';
 import { useArticleChangeStore } from '../../article-changes/models/article-change.store';
 import { createPinia } from 'pinia';
@@ -33,62 +34,62 @@ describe('一覧取得と未確定変更の合成', () => {
     const pinia = createPinia();
     const sync = new ArticleChangeSyncModel(api, { load: async () => [], put: async () => {}, remove: async () => {} }, async () => () => {}, useArticleChangeStore(pinia), useArticleDataStore(pinia));
     await sync.restoreAndSyncUnfinishedChanges();
-    const list = useArticleListViewModel(api, sync.changes, sync.articles, sync);
-    await list.changeKind('interested');
+    const list = useArticleListViewModel(createArticleListModel(api, sync.articles, sync.changes), sync);
+    await list.changeListKind('interested');
     return { sync, list, api };
   }
 
   it('解除はすぐ非表示にし、拒否が確定した記事だけ元の順番へ復元する', async () => {
     const { sync, list, api } = await setup();
     const pending = deferred<ArticleStateOperationResponse>(); api.applyArticleState.mockReturnValueOnce(pending.promise);
-    list.toggleInterest(list.articles.value[1]!.articleId); await flush();
-    expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 1]);
-    list.togglePin(list.articles.value[0]!.articleId); await flush();
+    list.toggleInterest(list.displayedArticles.value[1]!.articleId); await flush();
+    expect(list.displayedArticles.value.map((item) => item.articleId)).toEqual([3, 1]);
+    list.togglePin(list.displayedArticles.value[0]!.articleId); await flush();
     pending.reject(new ArticleChangeRequestError('invalid', '拒否')); await flush();
-    expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
-    expect(list.articles.value[0]!.state.pinned).toBe(true);
+    expect(list.displayedArticles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
+    expect(list.displayedArticles.value[0]!.state.pinned).toBe(true);
     sync.dispose(); list.dispose();
   });
 
   it('解除後の再取得に記事が含まれなくても、拒否時の復元用カードを保持する', async () => {
     const { sync, list, api } = await setup();
     const pending = deferred<ArticleStateOperationResponse>(); api.applyArticleState.mockReturnValueOnce(pending.promise);
-    list.toggleInterest(list.articles.value[1]!.articleId); await flush();
-    api.getArticlePage.mockResolvedValueOnce(interestedPage([3, 1])); await list.refresh();
+    list.toggleInterest(list.displayedArticles.value[1]!.articleId); await flush();
+    api.getArticlePage.mockResolvedValueOnce(interestedPage([3, 1])); await list.refreshArticles();
     pending.reject(new ArticleChangeRequestError('invalid', '拒否')); await flush();
-    expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
+    expect(list.displayedArticles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
     sync.dispose(); list.dispose();
   });
 
   it('変更中に一覧を再取得しても希望状態を保ち、古い一覧応答で成功を戻さない', async () => {
     const { sync, list, api } = await setup();
     const oldPage = deferred<ArticlePageResponse>(); api.getArticlePage.mockReturnValueOnce(oldPage.promise);
-    const request = list.refresh();
-    list.togglePin(list.articles.value[0]!.articleId); await flush();
+    const request = list.refreshArticles();
+    list.togglePin(list.displayedArticles.value[0]!.articleId); await flush();
     oldPage.resolve(interestedPage([3, 2, 1])); await request;
-    expect(list.articles.value[0]!.state.pinned).toBe(true);
+    expect(list.displayedArticles.value[0]!.state.pinned).toBe(true);
     sync.dispose(); list.dispose();
   });
 
   it('全記事で登録した記事は気になるに現れ、解除後の切り替えでも復活しない', async () => {
     const { sync, list, api } = await setup();
-    api.getArticlePage.mockResolvedValueOnce(page([5])); await list.changeKind('all');
-    list.toggleInterest(list.articles.value[0]!.articleId); await flush();
-    api.getArticlePage.mockResolvedValueOnce(page([])); await list.changeKind('interested');
-    expect(list.articles.value.map((item) => item.articleId)).toEqual([5]);
-    list.toggleInterest(list.articles.value[0]!.articleId); await flush();
-    expect(list.articles.value).toEqual([]);
+    api.getArticlePage.mockResolvedValueOnce(page([5])); await list.changeListKind('all');
+    list.toggleInterest(list.displayedArticles.value[0]!.articleId); await flush();
+    api.getArticlePage.mockResolvedValueOnce(page([])); await list.changeListKind('interested');
+    expect(list.displayedArticles.value.map((item) => item.articleId)).toEqual([5]);
+    list.toggleInterest(list.displayedArticles.value[0]!.articleId); await flush();
+    expect(list.displayedArticles.value).toEqual([]);
     sync.dispose(); list.dispose();
   });
 
   it('二つのViewModelは選択タブを共有せず、記事のピン状態だけ共有する', async () => {
     const { sync, list, api } = await setup();
-    const other = useArticleListViewModel(api, sync.changes, sync.articles, sync);
-    await other.refresh();
-    expect(list.kind.value).toBe('interested'); expect(other.kind.value).toBe('all');
+    const other = useArticleListViewModel(createArticleListModel(api, sync.articles, sync.changes), sync);
+    await other.refreshArticles();
+    expect(list.selectedKind.value).toBe('interested'); expect(other.selectedKind.value).toBe('all');
     list.togglePin(3); await flush();
-    expect(list.articles.value[0]!.state.pinned).toBe(true);
-    expect(other.articles.value[0]!.state.pinned).toBe(true);
+    expect(list.displayedArticles.value[0]!.state.pinned).toBe(true);
+    expect(other.displayedArticles.value[0]!.state.pinned).toBe(true);
     list.dispose(); other.dispose(); sync.dispose();
   });
 

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { onUnmounted } from 'vue';
 import type { ArticleListKind } from '@it-discovery/contracts';
-import { useArticleListViewModel, type ArticleListServices } from '../../view-models/useArticleListViewModel';
+import { useArticleListViewModel } from '../../view-models/useArticleListViewModel';
+import type { ArticleListModel } from '../../models/article-list.model';
+import type { ArticleChangeViewActions } from '../../../article-changes/models/article-change-contracts';
 import type { PullGestureInput } from '../../models/pull-to-refresh-gesture';
 import ArticleListLayout from '../templates/ArticleListLayout.vue';
 import ArticleListToolbar from '../organisms/ArticleListToolbar.vue';
@@ -9,17 +11,16 @@ import ArticleListContent from '../organisms/ArticleListContent.vue';
 import ArticleSyncStatus from '../organisms/ArticleSyncStatus.vue';
 
 // Page：ViewModelと表示部品の接続場所。Store・同期サービスの内部を直接変更しない。
-const props = defineProps<{ services: ArticleListServices }>();
-const vm = useArticleListViewModel(props.services.api, props.services.articleState, props.services.articleData, props.services.sync);
-const { kind, articles, hasMore, loading, error, syncStatus, refresh, loadMore, retry,
+const props = defineProps<{ listModel: ArticleListModel; articleChanges: ArticleChangeViewActions }>();
+const vm = useArticleListViewModel(props.listModel, props.articleChanges);
+const { selectedKind, displayedArticles, hasMore, listLoading, listError, syncDisplay, refreshArticles, loadMoreArticles, retryArticleLoad,
   togglePin, toggleInterest, retrySync, discardBlocked,
   pullDistance, pullReady, finishPull, cancelPull } = vm;
-onMounted(() => { void vm.initialize(); });
 onUnmounted(() => { vm.dispose(); });
 
 function selectKind(value: ArticleListKind): void {
-  if (value !== kind.value) window.scrollTo({ top: 0 });
-  void vm.changeKind(value);
+  if (value !== selectedKind.value) window.scrollTo({ top: 0 });
+  void vm.changeListKind(value);
 }
 // Viewはブラウザのイベントを値へ変換する。一本指・方向・距離などの判定はModelへ任せる。
 // DOMに関する事実（先頭にいるか、操作部品を触れたか）だけを取り出す。
@@ -45,24 +46,24 @@ function touchMove(event: TouchEvent): void {
     </template>
     <template #intro>
       <p class="eyebrow">見つける、選ぶ、読む。</p>
-      <h1>{{ kind === 'all' ? '集まった情報' : '気になる情報' }}<span class="heading-dot">。</span></h1>
-      <p class="intro-description">{{ kind === 'all' ? 'ひとつの出会いが、次のアイデアに。' : 'あとで読みたい発見を、ひとつの場所に。' }}</p>
+      <h1>{{ selectedKind === 'all' ? '集まった情報' : '気になる情報' }}<span class="heading-dot">。</span></h1>
+      <p class="intro-description">{{ selectedKind === 'all' ? 'ひとつの出会いが、次のアイデアに。' : 'あとで読みたい発見を、ひとつの場所に。' }}</p>
     </template>
     <template #toolbar>
-      <ArticleListToolbar :kind="kind" :count="articles.length" :refreshing="loading === 'refresh'"
-        :disabled="!syncStatus.ready" :busy="loading === 'initial' || loading === 'refresh'" @select="selectKind" @refresh="refresh" />
+      <ArticleListToolbar :kind="selectedKind" :count="displayedArticles.length" :refreshing="listLoading === 'refresh'"
+        :disabled="!syncDisplay.startupSyncComplete" :busy="listLoading === 'initial' || listLoading === 'refresh'" @select="selectKind" @refresh="refreshArticles" />
     </template>
     <template #status>
-      <ArticleSyncStatus :status="syncStatus" @retry="retrySync" @discard="discardBlocked" />
+      <ArticleSyncStatus :status="syncDisplay" @retry="retrySync" @discard="discardBlocked" />
     </template>
     <!-- 名前なしの内容はLayoutの通常のslotへ入る。子のemitとVMの操作をここで接続する。 -->
-    <div class="pull-status" :style="{ height: `${loading === 'refresh' ? 40 : pullDistance}px` }" role="status">
-      <span v-if="loading === 'refresh'">一覧を更新しています…</span>
+    <div class="pull-status" :style="{ height: `${listLoading === 'refresh' ? 40 : pullDistance}px` }" role="status">
+      <span v-if="listLoading === 'refresh'">一覧を更新しています…</span>
       <span v-else-if="pullDistance > 0">{{ pullReady ? '離して更新' : '↓ 下に引いて更新' }}</span>
     </div>
-    <ArticleListContent :articles="articles" :kind="kind" :initial-loading="!syncStatus.ready || loading === 'initial'"
-      :loading="loading !== null" :has-more="hasMore" :error="error?.message ?? null" :actions-disabled="!syncStatus.canChange"
-      @pin="togglePin" @interest="toggleInterest" @more="loadMore" @retry="retry" />
+    <ArticleListContent :articles="displayedArticles" :kind="selectedKind" :initial-loading="!syncDisplay.startupSyncComplete || listLoading === 'initial'"
+      :loading="listLoading !== null" :has-more="hasMore" :error="listError?.message ?? null" :actions-disabled="!syncDisplay.canChangeArticles"
+      @pin="togglePin" @interest="toggleInterest" @more="loadMoreArticles" @retry="retryArticleLoad" />
     <template #footer><p class="page-footnote">小さな発見を、毎日に。</p></template>
   </ArticleListLayout>
 </template>

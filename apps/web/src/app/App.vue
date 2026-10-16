@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onUnmounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import ArticleListPage from '../features/list/views/pages/ArticleListPage.vue';
-import type { ApplicationServices } from './create-services';
+import type { ApplicationModels } from './create-application-models';
 
-// main.tsで組み立てた同じサービス群を画面へ渡す。App終了時だけ共有同期を終了する。
-const props = defineProps<{ services: ApplicationServices }>();
-onUnmounted(() => props.services.dispose());
+// Appはアプリ起動の入口。一覧の初回取得は「端末同期の解消後」という順番で起動Modelへ頼む。
+const props = defineProps<{ models: ApplicationModels }>();
+const articleList = props.models.createArticleList();
+onMounted(() => { void props.models.startup.startArticleList(articleList); });
+onUnmounted(() => { articleList.dispose(); props.models.dispose(); });
 </script>
 
 <template>
-  <ArticleListPage :services="services" />
+  <ArticleListPage :list-model="articleList" :article-changes="models.articleChanges" />
 </template>

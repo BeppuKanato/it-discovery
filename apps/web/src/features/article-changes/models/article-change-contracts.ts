@@ -4,6 +4,7 @@ import type { ArticleListItem, ArticleStateMutationRequest, ArticleStateOperatio
 export type StateField = 'interested' | 'pinned';
 export interface UnfinishedArticleChange {
   order: number;
+  // 再起動時に一覧を取り直す前でも状態を復元できるよう、記事の写しを残す。
   article: ArticleListItem;
   request: ArticleStateMutationRequest & { change: { kind: StateField; value: boolean } };
 }
@@ -25,7 +26,7 @@ export class ArticleChangeRequestError extends Error {
 }
 
 
-// ViewModelが利用する操作の約束。具体的な同期クラスの内部には依存しない。
+// 記事変更を復元・保存する操作の約束。起動Modelと同期Modelの接続に使う。
 export interface ArticleChangeActions {
   restoreAndSyncUnfinishedChanges(): Promise<void>;
   setArticleState(articleId: number, field: StateField, value: boolean): void;
@@ -35,12 +36,20 @@ export interface ArticleChangeActions {
 
 // ViewModelがViewへ渡す同期状況の値。操作関数やStore自体は含めない。
 export interface ArticleSyncDisplay {
-  ready: boolean;
-  canChange: boolean;
-  pendingCount: number;
+  startupSyncComplete: boolean;
+  canChangeArticles: boolean;
+  unfinishedCount: number;
   blockedCount: number;
   notice: string;
   storageError: boolean;
   startupError: string;
   online: boolean;
+}
+
+// 画面が利用するModelの窓口。起動処理やAPI・Storeの実装を含めない。
+export interface ArticleChangeViewActions {
+  getSyncDisplay(): ArticleSyncDisplay;
+  toggleArticleField(articleId: number, field: StateField): void;
+  retryUnfinishedChanges(): void;
+  discardBlockedChanges(): void;
 }

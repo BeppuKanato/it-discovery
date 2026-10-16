@@ -1,52 +1,65 @@
 import type { ArticleDataStore } from '../../articles/models/article-data.store';
 import { type ArticleChangeStore, type TrackedArticleChange } from './article-change.store';
 import type { ArticleStateOperationResponse } from '@it-discovery/contracts';
-import { ArticleChangeRequestError, type ArticleChangeApi, type UnfinishedArticleChange, type StateField, type UnfinishedArticleChangeStorage } from './article-change-contracts';
+import { ArticleChangeRequestError, type ArticleSyncDisplay, type ArticleChangeApi, type UnfinishedArticleChange, type StateField, type UnfinishedArticleChangeStorage } from './article-change-contracts';
 
 interface StorageJob { run(): Promise<void>; done(): void }
 
-// 同期の手順を担当する。記事の状態と表示用の合成は注入されたStoreが管理する。
+// 記事変更のModel：希望状態の即時反映、端末保存、送信順、結果確認と再送を担当する。
+// 記事データStoreと同期Storeを別々に受け取り、Viewや一覧ページの寿命には依存しない。
 export class ArticleChangeSyncModel {
-  private jobs: StorageJob[] = [];
-  private writing = false;
-  private running = new Map<number, AbortController>();
-  private timers = new Map<number, ReturnType<typeof setTimeout>>();
-  private order = 0;
-  private disposed = false;
-  private release: (() => void) | null = null;
-  private starting = false;
+  private storageJobs: StorageJob[] = [];
+  private storageWriteInProgress = false;
+  private inFlightRequestsByArticle = new Map<number, AbortController>();
+  private retryTimersByArticle = new Map<number, ReturnType<typeof setTimeout>>();
+  private lastOperationOrder = 0;
+  private syncDisposed = false;
+  private releaseTabOwnership: (() => void) | null = null;
+  private restoreInProgress = false;
 
   constructor(
     private readonly api: ArticleChangeApi,
-    private readonly operationStore: UnfinishedArticleChangeStorage,
-    private readonly acquire: () => Promise<(() => void) | null>,
+    private readonly unfinishedChangeStorage: UnfinishedArticleChangeStorage,
+    private readonly acquireTabOwnership: () => Promise<(() => void) | null>,
     readonly changes: ArticleChangeStore,
     readonly articles: ArticleDataStore,
     private readonly makeId: () => string = () => crypto.randomUUID(),
   ) {}
 
-  // 最初は所有権と端末保存を確認する。復元した未送信があれば、解消するまで一覧開始を待つ。
+  // 最初は所有権と端末保存を確認する。復元した未完了変更があれば、解消するまで一覧開始を待つ。
   async restoreAndSyncUnfinishedChanges(): Promise<void> {
-    if (this.starting || this.changes.syncStatus.storageRestored || this.disposed) return;
-    this.starting = true;
+    if (this.restoreInProgress || this.changes.syncStatus.storageRestored || this.syncDisposed) return;
+    this.restoreInProgress = true;
     this.changes.updateSyncStatus({ startupError: '' });
     try {
-      this.release ??= await this.acquire();
-      if (!this.release) throw new Error('別のタブで操作中です。そのタブを閉じてから再試行してください。');
-      const records = await this.operationStore.load();
-      if (this.disposed) { this.release?.(); this.release = null; return; }
+      this.releaseTabOwnership ??= await this.acquireTabOwnership();
+      if (!this.releaseTabOwnership) throw new Error('別のタブで操作中です。そのタブを閉じてから再試行してください。');
+      const records = await this.unfinishedChangeStorage.load();
+      if (this.syncDisposed) { this.releaseTabOwnership?.(); this.releaseTabOwnership = null; return; }
       for (const record of records) {
-        this.order = Math.max(this.order, record.order);
+        this.lastOperationOrder = Math.max(this.lastOperationOrder, record.order);
 
         // 再起動前の要求が処理済みかもしれないため、最初に操作IDの結果を照会する。
         this.trackArticleChange(record, true, true);
       }
       this.changes.updateSyncStatus({ storageRestored: true });
-      this.updateStartupSyncComplete();
+      this.changes.updateStartupSyncComplete();
       this.sendNextChangesForAllArticles();
     } catch (error) {
       this.changes.updateSyncStatus({ startupError: error instanceof Error ? error.message : '端末の変更を読み込めませんでした。' });
-    } finally { this.starting = false; }
+    } finally { this.restoreInProgress = false; }
+  }
+
+  // ViewModelへ渡す同期状況。記事の既読・ピン・気になるとは別の情報。
+  getSyncDisplay(): ArticleSyncDisplay {
+    return { ...this.changes.syncStatus, canChangeArticles: this.changes.canChangeArticles,
+      unfinishedCount: this.changes.unfinishedCount, blockedCount: this.changes.blockedCount };
+  }
+
+  // 現在の希望状態を読み、反転を一度だけ明示値にして保存する。再送は反転しない。
+  toggleArticleField(articleId: number, field: StateField): void {
+    const current = this.readArticle(articleId);
+    if (current) this.setArticleState(articleId, field, !current.state[field]);
   }
 
   // 操作は即時表示する。サーバーへ送るのは端末へのputが完了した後だけ。
@@ -56,11 +69,11 @@ export class ArticleChangeSyncModel {
     if (!current) return;
     const record: UnfinishedArticleChange = {
       // 一覧はVueのreadonlyで包まれる場合があるため、保存用には通常のオブジェクトへ写す。
-      order: ++this.order, article: { ...current, source: { ...current.source }, state: { ...current.state } },
+      order: ++this.lastOperationOrder, article: { ...current, source: { ...current.source }, state: { ...current.state } },
       request: { operationId: this.makeId(), change: { kind: field, value } },
     };
     const op = this.trackArticleChange(record, false, false);
-    this.jobs.push({ run: () => this.operationStore.put(copyOperation(record)), done: () => this.changes.markPersisted(op) });
+    this.storageJobs.push({ run: () => this.unfinishedChangeStorage.put(copyOperation(record)), done: () => this.changes.markPersisted(op) });
 
     void this.drainStorage();
   }
@@ -76,22 +89,21 @@ export class ArticleChangeSyncModel {
     return this.changes.trackChange(record, persisted, lookup);
   }
 
-  private updateStartupSyncComplete(): void { this.changes.updateStartupSyncComplete(); }
 
   // 全記事で共有する端末保存の順番。失敗したジョブを先頭に残し、再試行からやり直す。
   private async drainStorage(): Promise<void> {
-    if (this.writing || this.changes.syncStatus.storageError || this.disposed) return;
-    this.writing = true;
+    if (this.storageWriteInProgress || this.changes.syncStatus.storageError || this.syncDisposed) return;
+    this.storageWriteInProgress = true;
     try {
-      while (this.jobs.length && !this.disposed) {
-        const job = this.jobs[0]!;
+      while (this.storageJobs.length && !this.syncDisposed) {
+        const job = this.storageJobs[0]!;
         await job.run();
-        if (this.disposed) return;
-        this.jobs.shift(); job.done(); this.sendNextChangesForAllArticles();
+        if (this.syncDisposed) return;
+        this.storageJobs.shift(); job.done(); this.sendNextChangesForAllArticles();
       }
     } catch {
       this.changes.updateSyncStatus({ storageError: true, notice: '端末に変更を保存できませんでした。状態変更を停止しています。閉じると失われる変更があります。再試行してください。' });
-    } finally { this.writing = false; }
+    } finally { this.storageWriteInProgress = false; }
   }
 
   private sendNextChangesForAllArticles(): void {
@@ -100,21 +112,21 @@ export class ArticleChangeSyncModel {
 
   // 同じ記事では先頭の一件だけ送る。別の記事は互いを待たず送信できる。
   private async sendNextChangeForArticle(articleId: number): Promise<void> {
-    if (this.disposed || this.changes.syncStatus.storageError || !this.changes.syncStatus.online || this.running.has(articleId) || this.timers.has(articleId)) return;
+    if (this.syncDisposed || this.changes.syncStatus.storageError || !this.changes.syncStatus.online || this.inFlightRequestsByArticle.has(articleId) || this.retryTimersByArticle.has(articleId)) return;
     const op = this.changes.unfinishedChanges.find((item) => item.record.article.articleId === articleId);
     if (!op || !op.persisted || op.settled || op.blocked) return;
     const controller = new AbortController();
-    this.running.set(articleId, controller);
+    this.inFlightRequestsByArticle.set(articleId, controller);
     try {
       const { request } = op.record;
       let result = op.lookup ? await this.api.getArticleStateOperation(request.operationId, controller.signal) : undefined;
       // 未記録は失敗確定ではない。同じID・内容を再送し、サーバー側で重複を防ぐ。
       result ??= await this.api.applyArticleState(articleId, request, controller.signal);
-      if (this.disposed) return;
+      if (this.syncDisposed) return;
       if (result.articleId !== articleId || result.operationId !== request.operationId) throw new ArticleChangeRequestError('blocked', '操作結果が要求と一致しません。');
       this.complete(op, result);
     } catch (error) {
-      if (this.disposed) return;
+      if (this.syncDisposed) return;
       if (error instanceof ArticleChangeRequestError && error.kind === 'invalid') {
         this.changes.updateSyncStatus({ notice: error.message });
         this.complete(op); // 入力拒否が確定した変更だけを除き、後続の希望状態は残す。
@@ -123,17 +135,17 @@ export class ArticleChangeSyncModel {
       } else {
         const attempt = this.changes.recordRetry(op);
         const seconds = [1, 2, 4, 8, 16, 30][Math.min(attempt, 5)]!;
-        if (this.changes.syncStatus.online) this.timers.set(articleId, setTimeout(() => {
-          this.timers.delete(articleId); void this.sendNextChangeForArticle(articleId);
+        if (this.changes.syncStatus.online) this.retryTimersByArticle.set(articleId, setTimeout(() => {
+          this.retryTimersByArticle.delete(articleId); void this.sendNextChangeForArticle(articleId);
         }, seconds * 1000));
       }
-    } finally { this.running.delete(articleId); }
+    } finally { this.inFlightRequestsByArticle.delete(articleId); }
   }
 
   // 成功した項目だけ確定値へ反映する。応答中の他の項目で、別の判断を上書きしない。
   private complete(op: TrackedArticleChange, result?: ArticleStateOperationResponse): void {
     if (op.settled) return;
-    // Storeが状態を確定し、再起動時の基準を直した後続レコードを返す。
+    // 記事データの確定と、未完了操作の後処理を順に行う。拒否では確定値を変更しない。
     const articleId = op.record.article.articleId;
     const field = op.record.request.change.kind;
     if (result?.status === 'saved') this.articles.confirmField(articleId, field, result.state);
@@ -144,12 +156,12 @@ export class ArticleChangeSyncModel {
     this.articles.markFieldChanged(articleId, field);
     const confirmedState = this.articles.getConfirmedArticle(articleId)?.state ?? op.record.article.state;
     for (const record of this.changes.settleChange(op, confirmedState)) {
-      this.jobs.push({ run: () => this.operationStore.put(copyOperation(record)), done: () => {} });
+      this.storageJobs.push({ run: () => this.unfinishedChangeStorage.put(copyOperation(record)), done: () => {} });
     }
     // サーバーで成功しても端末削除が失敗することがある。削除完了まで後続を送らない。
-    this.jobs.push({ run: () => this.operationStore.remove(op.record.request.operationId), done: () => {
+    this.storageJobs.push({ run: () => this.unfinishedChangeStorage.remove(op.record.request.operationId), done: () => {
       this.changes.removeCompletedChange(op.record.request.operationId);
-      this.updateStartupSyncComplete();
+      this.changes.updateStartupSyncComplete();
     } });
 
     void this.drainStorage();
@@ -159,8 +171,8 @@ export class ArticleChangeSyncModel {
   retryUnfinishedChanges(): void {
     if (!this.changes.syncStatus.storageRestored) { void this.restoreAndSyncUnfinishedChanges(); return; }
     this.changes.prepareRetry();
-    for (const timer of this.timers.values()) clearTimeout(timer);
-    this.timers.clear();
+    for (const timer of this.retryTimersByArticle.values()) clearTimeout(timer);
+    this.retryTimersByArticle.clear();
     void this.drainStorage(); this.sendNextChangesForAllArticles();
   }
 
@@ -173,21 +185,21 @@ export class ArticleChangeSyncModel {
   setOnline(value: boolean): void {
     this.changes.updateSyncStatus({ online: value });
     if (!value) {
-      for (const timer of this.timers.values()) clearTimeout(timer);
-      this.timers.clear();
+      for (const timer of this.retryTimersByArticle.values()) clearTimeout(timer);
+      this.retryTimersByArticle.clear();
     } else this.sendNextChangesForAllArticles();
   }
 
   dispose(): void {
-    this.disposed = true;
+    this.syncDisposed = true;
     this.changes.updateSyncStatus({ stopped: true });
-    for (const timer of this.timers.values()) clearTimeout(timer);
-    for (const controller of this.running.values()) controller.abort();
+    for (const timer of this.retryTimersByArticle.values()) clearTimeout(timer);
+    for (const controller of this.inFlightRequestsByArticle.values()) controller.abort();
     // IndexedDBへの処理中の書き込みが終わってから所有権を渡す。
-    // 未送信の保存済み記録は消さず、次回は結果照会から再開する。
+    // 未完了の保存済み記録は消さず、次回は結果照会から再開する。
     const releaseWhenIdle = () => {
-      if (this.writing || this.running.size) { setTimeout(releaseWhenIdle, 10); return; }
-      this.release?.(); this.release = null;
+      if (this.storageWriteInProgress || this.inFlightRequestsByArticle.size) { setTimeout(releaseWhenIdle, 10); return; }
+      this.releaseTabOwnership?.(); this.releaseTabOwnership = null;
     };
     releaseWhenIdle();
   }
