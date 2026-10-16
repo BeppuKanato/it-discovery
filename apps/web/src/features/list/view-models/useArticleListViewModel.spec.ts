@@ -1,8 +1,10 @@
+import { createPinia } from 'pinia';
+import { useArticleStateStore } from '../../article-state/models/article-state.store';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArticlePageResponse } from '@it-discovery/contracts';
 import type { ArticleListApi } from '../models/article-list-api';
 import { page } from '../../../test/article-fixture';
-import { useArticleList } from './useArticleList';
+import { useArticleListViewModel } from './useArticleListViewModel';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -14,10 +16,10 @@ function deferred<T>() {
 describe('記事一覧の取得と競合', () => {
   it('全記事を先頭20件から要求し、記事と続き位置を表示する', async () => {
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>().mockResolvedValue(page([1, 2], 'next'));
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     await list.refresh();
     expect(getArticlePage).toHaveBeenCalledWith({ kind: 'all', limit: 20 }, expect.any(AbortSignal));
-    expect(list.articles.value.map((item) => item.articleId)).toEqual([1, 2]);
+    expect(list.articles.value.map((item) => item.articleId)).toEqual([2, 1]);
     expect(list.nextCursor.value).toBe('next');
     expect(list.canLoadMore.value).toBe(true);
   });
@@ -26,7 +28,7 @@ describe('記事一覧の取得と競合', () => {
     const pending = deferred<ArticlePageResponse>();
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>()
       .mockResolvedValueOnce(page([1, 2], 'next')).mockReturnValueOnce(pending.promise);
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     await list.refresh();
     const append = list.loadMore();
     await list.loadMore();
@@ -34,7 +36,7 @@ describe('記事一覧の取得と競合', () => {
     pending.resolve(page([2, 3]));
     await append;
     await list.loadMore();
-    expect(list.articles.value.map((item) => item.articleId)).toEqual([1, 2, 3]);
+    expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
     expect(getArticlePage).toHaveBeenCalledTimes(2);
     expect(list.hasMore.value).toBe(false);
   });
@@ -43,7 +45,7 @@ describe('記事一覧の取得と競合', () => {
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>()
       .mockResolvedValueOnce(page([1], 'next')).mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(page([2]));
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     await list.refresh();
     await list.loadMore();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([1]);
@@ -53,15 +55,17 @@ describe('記事一覧の取得と競合', () => {
     expect(getArticlePage).toHaveBeenCalledTimes(2);
     await list.retry();
     expect(getArticlePage.mock.calls[2]?.[0]).toEqual({ kind: 'all', limit: 20, cursor: 'next' });
-    expect(list.articles.value.map((item) => item.articleId)).toEqual([1, 2]);
+    expect(list.articles.value.map((item) => item.articleId)).toEqual([2, 1]);
     expect(list.error.value).toBeNull();
   });
 
   it('切り替え前の遅い応答は、新しい種類の一覧を上書きしない', async () => {
     const old = deferred<ArticlePageResponse>();
+    const interested = page([7]);
+    interested.articles[0]!.state.interested = true;
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>()
-      .mockReturnValueOnce(old.promise).mockResolvedValueOnce(page([7]));
-    const list = useArticleList({ getArticlePage });
+      .mockReturnValueOnce(old.promise).mockResolvedValueOnce(interested);
+    const list = createList({ getArticlePage });
     const first = list.refresh();
     await list.changeKind('interested');
     expect(getArticlePage.mock.calls[0]?.[1]?.aborted).toBe(true);
@@ -77,7 +81,7 @@ describe('記事一覧の取得と競合', () => {
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>()
       .mockResolvedValueOnce(page([1], 'first')).mockReturnValueOnce(old.promise)
       .mockResolvedValueOnce(page([9], 'latest'));
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     await list.refresh();
     const append = list.loadMore();
     await list.refresh();
@@ -91,7 +95,7 @@ describe('記事一覧の取得と競合', () => {
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>()
       .mockResolvedValueOnce(page([1], 'first')).mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(page([9]));
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     await list.refresh();
     await list.refresh();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([1]);
@@ -107,7 +111,7 @@ describe('記事一覧の取得と競合', () => {
     const latest = deferred<ArticlePageResponse>();
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>()
       .mockReturnValueOnce(old.promise).mockReturnValueOnce(middle.promise).mockReturnValueOnce(latest.promise);
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     const first = list.refresh();
     const second = list.changeKind('interested');
     const third = list.changeKind('all');
@@ -124,7 +128,7 @@ describe('記事一覧の取得と競合', () => {
   it('初回失敗は再試行でき、空一覧も正常な終端になる', async () => {
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>()
       .mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page([]));
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     await list.refresh();
     expect(list.error.value?.mode).toBe('initial');
     await list.retry();
@@ -136,7 +140,7 @@ describe('記事一覧の取得と競合', () => {
   it('画面終了後は通信を中止し、遅い応答を反映しない', async () => {
     const pending = deferred<ArticlePageResponse>();
     const getArticlePage = vi.fn<ArticleListApi['getArticlePage']>().mockReturnValue(pending.promise);
-    const list = useArticleList({ getArticlePage });
+    const list = createList({ getArticlePage });
     const first = list.refresh();
     list.dispose();
     expect(getArticlePage.mock.calls[0]?.[1]?.aborted).toBe(true);
@@ -147,3 +151,9 @@ describe('記事一覧の取得と競合', () => {
     expect(getArticlePage).toHaveBeenCalledTimes(1);
   });
 });
+
+function createList(api: ArticleListApi) {
+  const state = useArticleStateStore(createPinia());
+  state.updateStatus({ ready: true, initialized: true });
+  return useArticleListViewModel(api, state, { start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn() });
+}

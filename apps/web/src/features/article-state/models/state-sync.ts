@@ -24,9 +24,11 @@ export class StateRequestError extends Error {
   constructor(public readonly kind: 'invalid' | 'blocked' | 'temporary', message: string) { super(message); }
 }
 
-export interface StateProjection {
-  readonly version: number;
-  accept(articles: ArticleListItem[], readVersion: number): void;
-  project(article: ArticleListItem): ArticleListItem | null;
-  supplements(): ArticleListItem[];
+
+// ViewModelが利用する操作の約束。具体的な同期クラスの内部には依存しない。
+export interface ArticleStateActions {
+  start(): Promise<void>;
+  setState(articleId: number, field: StateField, value: boolean): void;
+  retry(): void;
+  discardBlocked(): void;
 }

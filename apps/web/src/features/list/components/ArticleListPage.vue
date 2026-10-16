@@ -5,30 +5,24 @@ import Message from 'primevue/message';
 import SelectButton from 'primevue/selectbutton';
 import Skeleton from 'primevue/skeleton';
 import ArticleCard from '../../../components/ArticleCard.vue';
-import type { ArticleListApi } from '../models/article-list-api';
-import { useArticleList } from '../controllers/useArticleList';
+import { useArticleListViewModel, type ArticleListServices } from '../view-models/useArticleListViewModel';
 import { usePullToRefresh } from '../controllers/usePullToRefresh';
-import type { ArticleStateApi, StateOperationStore } from '../../article-state/models/state-sync';
-import { useArticleStateChanges } from '../../article-state/controllers/useArticleStateChanges';
 
-// definePropsで親から通信部品を受け取る。取得方法を差し替えても画面の表示は共通にできる。
-const props = defineProps<{ api: ArticleListApi & ArticleStateApi; stateStore: StateOperationStore; acquireSyncOwner: () => Promise<(() => void) | null> }>();
-const { sync, status: syncStatus, revision: syncRevision } = useArticleStateChanges(props.api, props.stateStore, props.acquireSyncOwner);
-// Composableが返すrefを取り出す。分割代入してもrefなのでVueの変更追跡は維持される。
-const { kind, articles, hasMore, loading, error, refresh, changeKind, loadMore, retry, dispose } = useArticleList(props.api, sync, syncRevision);
+// PageはViewModelを作り、子のイベントをその操作へ接続する。Storeや同期の内部は操作しない。
+const props = defineProps<{ services: ArticleListServices }>();
+const vm = useArticleListViewModel(props.services.api, props.services.articleState, props.services.sync);
+// 戻り値のrefは分割しても追跡が続く。関数はイベントから呼ぶ操作の窓口。
+const { kind, articles, hasMore, loading, error, syncStatus, refresh, changeKind, loadMore, retry,
+  togglePin, toggleInterest, retrySync, discardBlocked } = vm;
 const options = [{ label: 'すべて', value: 'all' }, { label: '気になる', value: 'interested' }];
 // templateのref="sentinel"で末尾のHTML要素を受け取る。空一覧ではnullになる。
 const sentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 const pull = usePullToRefresh(refresh, () => syncStatus.value.ready && loading.value !== 'initial' && loading.value !== 'refresh');
 const { distance: pullDistance, ready: pullReady } = pull;
-function online(): void { sync.setOnline(navigator.onLine); }
 
 // 画面に近づいた末尾を監視して、続きを取得する。
 onMounted(() => {
-  online();
-  window.addEventListener('online', online);
-  window.addEventListener('offline', online);
   if (typeof IntersectionObserver !== 'undefined') {
     // IntersectionObserverは要素が表示範囲に入ると通知するブラウザAPI。
     // rootMarginで末尾が見える240px手前から追加取得を始める。
@@ -38,17 +32,13 @@ onMounted(() => {
     if (sentinel.value) observer.observe(sentinel.value);
   }
   // voidはPromiseの完了をここで待たない指定。失敗の表示はComposable内で処理する。
-  void sync.start();
+  void vm.initialize();
 });
-// watchで起動時同期の完了を待ち、残っていた一覧変更を確定してから最初の一覧を取得する。
-// readyは通常操作を始めた後はtrueのまま。毎回の保存で一覧を再取得するわけではない。
-watch(() => syncStatus.value.ready, (ready) => { if (ready) void refresh(); });
 // v-ifで末尾が作り直されるたび、監視対象を新しいHTML要素へ付け替える。
 watch(sentinel, (element) => { observer?.disconnect(); if (element) observer?.observe(element); });
 // 画面を離れるときに監視・指の操作・通信を止め、古い応答による状態変更を防ぐ。
 onUnmounted(() => {
-  observer?.disconnect(); pull.cancel(); dispose(); sync.dispose();
-  window.removeEventListener('online', online); window.removeEventListener('offline', online);
+  observer?.disconnect(); pull.cancel(); vm.dispose();
 });
 
 function selectKind(value: unknown): void {
@@ -107,8 +97,8 @@ function touchMove(event: TouchEvent): void {
       <p v-else-if="!syncStatus.ready">{{ syncStatus.pendingCount ? '端末に残った変更を同期しています…' : '端末の保存状態を確認しています…' }}</p>
       <p v-else-if="syncStatus.pendingCount">{{ syncStatus.online ? `${syncStatus.pendingCount}件の変更を保存しています…` : `${syncStatus.pendingCount}件の変更が未送信です。オンライン復帰後に保存します。` }}</p>
       <Message v-if="syncStatus.notice" :severity="syncStatus.storageError || syncStatus.blockedCount ? 'warn' : 'info'" :closable="false">{{ syncStatus.notice }}</Message>
-      <Button v-if="syncStatus.startupError || syncStatus.storageError || syncStatus.blockedCount" label="再試行" type="button" text size="small" @click="sync.retry()" />
-      <Button v-if="syncStatus.blockedCount" label="要確認の変更を破棄" type="button" text severity="danger" size="small" @click="sync.discardBlocked()" />
+      <Button v-if="syncStatus.startupError || syncStatus.storageError || syncStatus.blockedCount" label="再試行" type="button" text size="small" @click="retrySync()" />
+      <Button v-if="syncStatus.blockedCount" label="要確認の変更を破棄" type="button" text severity="danger" size="small" @click="discardBlocked()" />
     </div>
 
     <div class="pull-status" :style="{ height: `${loading === 'refresh' ? 40 : pullDistance}px` }" role="status">
@@ -130,7 +120,7 @@ function touchMove(event: TouchEvent): void {
       <ul v-else-if="articles.length" class="article-grid">
         <li v-for="article in articles" :key="article.articleId">
           <ArticleCard :article="article" editable :actions-disabled="!syncStatus.canChange"
-            @interest="sync.change(article, 'interested')" @pin="sync.change(article, 'pinned')" />
+            @interest="toggleInterest(article.articleId)" @pin="togglePin(article.articleId)" />
         </li>
       </ul>
 

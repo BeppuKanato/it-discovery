@@ -1,9 +1,9 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { openDB } from 'idb';
-import { article } from '../../../test/article-fixture';
+import { article } from '../../test/article-fixture';
 import { IndexedDbStateOperationStore } from './indexeddb-state-operation.store';
-import type { PendingStateOperation } from '../models/state-sync';
+import type { PendingStateOperation } from '../../features/article-state/models/state-sync';
 
 describe('未送信変更の端末保存', () => {
   const operation = (order: number): PendingStateOperation => ({ order, article: article(order), request: {

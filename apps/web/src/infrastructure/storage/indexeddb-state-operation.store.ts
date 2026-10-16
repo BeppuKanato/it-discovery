@@ -1,6 +1,6 @@
 import { openDB, type DBSchema } from 'idb';
-import { isArticlePageResponse } from '../../../infrastructure/api/article-page-response';
-import type { PendingStateOperation, StateOperationStore } from '../models/state-sync';
+import { isArticlePageResponse } from '../api/article-page-response';
+import type { PendingStateOperation, StateOperationStore } from '../../features/article-state/models/state-sync';
 
 interface StateDatabase extends DBSchema {
   operations: { key: string; value: PendingStateOperation };

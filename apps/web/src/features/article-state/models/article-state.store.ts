@@ -84,6 +84,12 @@ export const useArticleStateStore = defineStore('article-state', () => {
     return { ...article, state };
   }
 
+  // IDから最新の表示状態を取得する。一覧・仕分けは同じ管理元を参照する。
+  function getArticle(articleId: number): ArticleListItem | null {
+    const entry = entries.get(articleId);
+    return entry ? project(entry.article) : null;
+  }
+
   // 解除で一覧から消えた記事も保持し、保存拒否時にはViewModelが正しい位置へ復元できる。
   function supplements(): ArticleListItem[] {
     return [...entries.values()].filter((entry) => !entry.missing && entry.lastChangeVersion.has('interested')).map((entry) => entry.article);
@@ -121,7 +127,7 @@ export const useArticleStateStore = defineStore('article-state', () => {
 
   // Piniaは返したref/reactiveを追跡する。利用側は状態を読み、更新は上の操作を通す。
   return { entries, operations, version, status, pendingCount, blockedCount, canChange,
-    enqueue, accept, project, supplements, settle, remove, updateReady, updateStatus };
+    enqueue, accept, project, getArticle, supplements, settle, remove, updateReady, updateStatus };
 });
 
 // ReturnTypeは「この関数の戻り値の型」。Storeと同じ型を手で二重定義しないために使う。
