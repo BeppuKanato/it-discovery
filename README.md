@@ -46,6 +46,7 @@ npm run build
 - [SQLiteの作成とサンプル投入](docs/database.md)：DB保存先、マイグレーション、架空サンプル投入、保存処理の読み方。
 - [開発基盤の起動と確認](docs/development.md)：設定例、起動・型チェック・テスト・ビルド手順。
 - [技術構成とコード配置](docs/architecture.md)：採用技術、責任とファイルの対応、API共有型、開発・配置方針。
+- [HTTP処理の配置と適用範囲](docs/http-structure.md)：Controller・補助処理の配置、共通設定とAPI別の適用一覧。
 - [記事状態の変更・確認API](docs/article-state-api.md)：再送・既読日時・削除済み応答・構成図。
 - [記事一覧画面の実装](docs/article-list-ui.md)：構成図、取得と再試行の流れ、画面例と確認結果。
 - [画面構成の参照](docs/ui-reference.md)：採用した「サムネの中」の配置と、旧モックとの仕様の違い。
