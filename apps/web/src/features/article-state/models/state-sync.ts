@@ -32,3 +32,15 @@ export interface ArticleStateActions {
   retry(): void;
   discardBlocked(): void;
 }
+
+// ViewModelがViewへ渡す同期状況の値。操作関数やStore自体は含めない。
+export interface StateSyncSnapshot {
+  ready: boolean;
+  canChange: boolean;
+  pendingCount: number;
+  blockedCount: number;
+  notice: string;
+  storageError: boolean;
+  startupError: string;
+  online: boolean;
+}

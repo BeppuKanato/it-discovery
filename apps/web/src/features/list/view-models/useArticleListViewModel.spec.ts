@@ -1,4 +1,5 @@
 import { createPinia } from 'pinia';
+import { nextTick } from 'vue';
 import { useArticleStateStore } from '../../article-state/models/article-state.store';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArticlePageResponse } from '@it-discovery/contracts';
@@ -149,6 +150,30 @@ describe('記事一覧の取得と競合', () => {
     await list.refresh();
     expect(list.articles.value).toEqual([]);
     expect(getArticlePage).toHaveBeenCalledTimes(1);
+  });
+
+  it('起動時の未送信が解消してから初回取得し、通常保存では取り直さない', async () => {
+    const state = useArticleStateStore(createPinia());
+    const getArticlePage = vi.fn().mockResolvedValue(page([1]));
+    const list = useArticleListViewModel({ getArticlePage }, state, {
+      start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn(),
+    });
+    await list.initialize(); expect(getArticlePage).not.toHaveBeenCalled();
+    state.updateStatus({ ready: true }); await nextTick();
+    expect(getArticlePage).toHaveBeenCalledTimes(1);
+    state.updateStatus({ notice: '保存完了' }); await nextTick();
+    expect(getArticlePage).toHaveBeenCalledTimes(1);
+    list.dispose();
+  });
+
+  it('起動同期を待っている間に画面を閉じた場合は後から取得しない', async () => {
+    const state = useArticleStateStore(createPinia()); const getArticlePage = vi.fn();
+    const list = useArticleListViewModel({ getArticlePage }, state, {
+      start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn(),
+    });
+    await list.initialize(); list.dispose();
+    state.updateStatus({ ready: true }); await nextTick();
+    expect(getArticlePage).not.toHaveBeenCalled();
   });
 });
 

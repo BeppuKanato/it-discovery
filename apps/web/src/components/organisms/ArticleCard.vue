@@ -4,8 +4,8 @@ import Button from 'primevue/button';
 import Card from 'primevue/card';
 import Tag from 'primevue/tag';
 import type { ArticleListItem } from '@it-discovery/contracts';
-import { articleCardTokens } from '../app/ui-theme';
-import SourceBadge from './SourceBadge.vue';
+import { articleCardTokens } from '../../app/ui-theme';
+import SourceBadge from '../molecules/SourceBadge.vue';
 
 // definePropsは親から受け取る値の型を宣言するVueの機能。article自体はこの部品で変更しない。
 const props = defineProps<{ article: ArticleListItem; editable?: boolean; actionsDisabled?: boolean }>();

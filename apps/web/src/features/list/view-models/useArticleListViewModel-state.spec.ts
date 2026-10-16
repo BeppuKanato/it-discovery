@@ -39,9 +39,9 @@ describe('一覧取得と未確定変更の合成', () => {
   it('解除はすぐ非表示にし、拒否が確定した記事だけ元の順番へ復元する', async () => {
     const { sync, list, api } = await setup();
     const pending = deferred<ArticleStateOperationResponse>(); api.applyArticleState.mockReturnValueOnce(pending.promise);
-    toggle(sync, list.articles.value[1]!, 'interested'); await flush();
+    list.toggleInterest(list.articles.value[1]!.articleId); await flush();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 1]);
-    toggle(sync, list.articles.value[0]!, 'pinned'); await flush();
+    list.togglePin(list.articles.value[0]!.articleId); await flush();
     pending.reject(new StateRequestError('invalid', '拒否')); await flush();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
     expect(list.articles.value[0]!.state.pinned).toBe(true);
@@ -51,7 +51,7 @@ describe('一覧取得と未確定変更の合成', () => {
   it('解除後の再取得に記事が含まれなくても、拒否時の復元用カードを保持する', async () => {
     const { sync, list, api } = await setup();
     const pending = deferred<ArticleStateOperationResponse>(); api.applyArticleState.mockReturnValueOnce(pending.promise);
-    toggle(sync, list.articles.value[1]!, 'interested'); await flush();
+    list.toggleInterest(list.articles.value[1]!.articleId); await flush();
     api.getArticlePage.mockResolvedValueOnce(interestedPage([3, 1])); await list.refresh();
     pending.reject(new StateRequestError('invalid', '拒否')); await flush();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
@@ -62,7 +62,7 @@ describe('一覧取得と未確定変更の合成', () => {
     const { sync, list, api } = await setup();
     const oldPage = deferred<ArticlePageResponse>(); api.getArticlePage.mockReturnValueOnce(oldPage.promise);
     const request = list.refresh();
-    toggle(sync, list.articles.value[0]!, 'pinned'); await flush();
+    list.togglePin(list.articles.value[0]!.articleId); await flush();
     oldPage.resolve(interestedPage([3, 2, 1])); await request;
     expect(list.articles.value[0]!.state.pinned).toBe(true);
     sync.dispose(); list.dispose();
@@ -71,17 +71,35 @@ describe('一覧取得と未確定変更の合成', () => {
   it('全記事で登録した記事は気になるに現れ、解除後の切り替えでも復活しない', async () => {
     const { sync, list, api } = await setup();
     api.getArticlePage.mockResolvedValueOnce(page([5])); await list.changeKind('all');
-    toggle(sync, list.articles.value[0]!, 'interested'); await flush();
+    list.toggleInterest(list.articles.value[0]!.articleId); await flush();
     api.getArticlePage.mockResolvedValueOnce(page([])); await list.changeKind('interested');
     expect(list.articles.value.map((item) => item.articleId)).toEqual([5]);
-    toggle(sync, list.articles.value[0]!, 'interested'); await flush();
+    list.toggleInterest(list.articles.value[0]!.articleId); await flush();
     expect(list.articles.value).toEqual([]);
     sync.dispose(); list.dispose();
   });
-});
 
-function toggle(sync: ArticleStateSyncService, item: ReturnType<typeof article>, field: 'pinned' | 'interested'): void {
-  if (!sync.state.entries.has(item.articleId)) sync.state.accept([item], sync.state.version);
-  const current = sync.state.getArticle(item.articleId);
-  if (current) sync.setState(item.articleId, field, !current.state[field]);
-}
+  it('二つのViewModelは選択タブを共有せず、記事のピン状態だけ共有する', async () => {
+    const { sync, list, api } = await setup();
+    const other = useArticleListViewModel(api, sync.state, sync);
+    await other.refresh();
+    expect(list.kind.value).toBe('interested'); expect(other.kind.value).toBe('all');
+    list.togglePin(3); await flush();
+    expect(list.articles.value[0]!.state.pinned).toBe(true);
+    expect(other.articles.value[0]!.state.pinned).toBe(true);
+    list.dispose(); other.dispose(); sync.dispose();
+  });
+
+  it('一覧を閉じても、アプリ共有の同期は進んで確認済み状態へ反映される', async () => {
+    const { sync, list, api } = await setup();
+    const pending = deferred<ArticleStateOperationResponse>(); api.applyArticleState.mockReturnValueOnce(pending.promise);
+    list.togglePin(3); await flush();
+    const call = api.applyArticleState.mock.calls[0]!;
+    list.dispose();
+    expect(sync.state.status.stopped).toBe(false);
+    pending.resolve({ operationId: call[1].operationId, articleId: 3, status: 'saved', state: { ...article(3).state, pinned: true } });
+    await flush();
+    expect(sync.state.pendingCount).toBe(0); expect(sync.state.getArticle(3)?.state.pinned).toBe(true);
+    sync.dispose();
+  });
+});
