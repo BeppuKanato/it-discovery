@@ -26,9 +26,11 @@ flowchart TB
     ListAPI[ArticleListApi]
     StateAPI[ArticleStateApi]
     Local[StateOperationStore]
+    Gesture[PullToRefreshGesture]
   end
   Page --> List
   List --> State
+  List --> Gesture
   List --> SyncActions[ArticleStateActions]
   List --> ListAPI
   Sync -. 実装 .-> SyncActions
@@ -69,7 +71,9 @@ flowchart TB
 - 一覧VMは記事ID列を持つ。APIで届いた記事内容・状態はStoreへ取り込み、VMに編集可能な別コピーを持たせない。
 - 記事の状態は「確認済み値＋未確定の希望値」から求める。取得中に変更された項目を古い一覧応答で戻さない。
 - 表示記事はcomputedで求め、別の状態配列に詰め直さない。絞り込み・復元・並び順はこの計算で扱う。
-- カードの説明文の展開、指の座標、DOMの監視は、そのViewに閉じた状態なのでView側に置く。
+- 下に引く操作の開始座標・距離・成立判定はModelのPullToRefreshGestureが持つ。VMは画面ごとにその実体を作り、表示用のdistance・readyをcomputedで公開する。
+- ViewはTouchEventから座標・指の本数・画面先頭か・操作部品を触れたかを取り出す。方向・距離の判定はせず、VMへ渡す。DOM監視やpreventDefaultなどのブラウザ制御はViewに残す。
+- カード内の説明文の展開は、カードだけの表示状態としてViewに残す。今回移すのはジェスチャーの状態と判定である。
 - Serviceの実行中要求・再送タイマー・端末書き込みジョブはServiceが保持する。表示データの別コピーではない。
 - Piniaはメモリ上の共有状態。IndexedDBは終了後にも残す端末保存先であり、役割が違う。
 
@@ -126,9 +130,10 @@ src/
           ArticleListToolbar.vue
           ArticleListContent.vue
           ArticleSyncStatus.vue
-        composables/usePullToRefresh.ts
       view-models/useArticleListViewModel.ts
-      models/article-list-api.ts
+      models/
+        article-list-api.ts
+        pull-to-refresh-gesture.ts
     article-state/
       models/
         article-state.store.ts
@@ -140,7 +145,7 @@ src/
     state-sync-owner.ts
 ```
 
-共通の表示部品だけをcomponentsへ置く。特定の機能でしか使わない部品はfeatures内に置く。フロントにNestのControllerはなく、従来のcontrollersフォルダはview-modelsまたはViewのcomposablesへ整理した。初期の疎通確認用connectionは後方の確認用として残している。
+共通の表示部品だけをcomponentsへ置く。特定の機能でしか使わない部品はfeatures内に置く。フロントにNestのControllerはなく、従来のcontrollersはview-modelsへ、下に引く操作の判定はmodelsへ整理した。views/composablesは廃止した。初期の疎通確認用connectionは後方の確認用として残している。
 
 ## 5. オブジェクトと主な操作
 
@@ -226,8 +231,38 @@ ViewModelは`togglePin`で現在の表示値を反転するが、Serviceへ渡�
 6. [Store](../apps/web/src/features/article-state/models/article-state.store.ts)のenqueue・project・settle。
 7. [通信](../apps/web/src/infrastructure/api/api-client.ts)と[端末保存](../apps/web/src/infrastructure/storage/indexeddb-state-operation.store.ts)。
 
+## 8. 下に引いて更新する操作
+
+ボタンのクリックと同じく、Viewはブラウザの入力をVMへ渡す。複数の入力から操作を判定する部分は、名前を付けたModelにまとめる。
+
+```mermaid
+sequenceDiagram
+  participant V as Page / View
+  participant VM as 一覧ViewModel
+  participant G as PullToRefreshGesture / Model
+  participant API as 一覧API
+  V->>VM: beginPull 座標・指の本数・DOMから得た事実
+  VM->>G: begin 入力と操作可能か
+  V->>VM: movePull 移動後の入力
+  VM->>G: move 方向と距離を判定
+  G-->>VM: スクロールを止める必要があるか
+  VM-->>V: 判定結果を返す
+  Note over V,G: VMのcomputedを通じて引っ張り量と案内を描画する
+  V->>VM: finishPull 指を離した
+  VM->>G: finish 操作が成立したか
+  G-->>VM: 成立結果を返し操作状態をリセット
+  alt 操作成立
+    VM->>API: refresh 一覧を取得する
+  end
+```
+
+- [Model](../apps/web/src/features/list/models/pull-to-refresh-gesture.ts)はVue・TouchEvent・DOM・通信に依存しない。開始位置、方向、抵抗を付けた距離、64pxでの成立と84pxの上限、複数指や横移動のキャンセルを扱う。更新関数は呼ばない。
+- [VM](../apps/web/src/features/list/view-models/useArticleListViewModel.ts)はModelをreactiveで追跡し、pullDistance・pullReadyをViewへ公開する。操作可否を渡し、finishの成立結果でrefreshを呼ぶ。
+- [Page](../apps/web/src/features/list/views/pages/ArticleListPage.vue)はイベントを値へ変換する。movePullの結果に応じたpreventDefaultだけはブラウザ操作なので担当する。
+- タッチ中止・タブ切り替え・画面終了ではVMがModelをキャンセルする。起動待機中や初回取得・更新中は開始しない。
+
 ## 確認
 
-web61件・API193件、計254件。既存の再送・応答不明・削除済み・ロールバック・解除復元を維持し、Storeの共有、Proxyの端末保存、独自通知番号なしの追跡、画面ごとのタブの独立、画面を閉じた後の同期、起動時の一覧待機を確認する。
+前回の全体確認はweb61件・API193件、計254件。今回のジェスチャー分離後はweb67件が成功し、webの型チェックとビルドも成功した。APIは変更していない。既存の再送・応答不明・削除済み・ロールバック・解除復元を維持し、Storeの共有、Proxyの端末保存、独自通知番号なしの追跡、画面ごとのタブの独立、画面を閉じた後の同期、起動時の一覧待機を確認する。
 
 全体の型チェック・テスト・ビルドが成功。ブラウザ390px幅で、ピン・気になる・タブ切り替え・再読み込み、保存拒否の復元、503中の起動待機と復旧を確認した。実機iPhoneは未確認。外部記事の既読や仕分けは後続Issueで接続する。

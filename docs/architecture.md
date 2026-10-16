@@ -78,9 +78,10 @@ apps/
             pages/ArticleListPage.vue
             templates/ArticleListLayout.vue
             organisms/             # Toolbar・Content・SyncStatus
-            composables/usePullToRefresh.ts
           view-models/useArticleListViewModel.ts
-          models/article-list-api.ts
+          models/
+            article-list-api.ts
+            pull-to-refresh-gesture.ts
         article-state/
           models/
             article-state.store.ts # Piniaで共通状態を持つ

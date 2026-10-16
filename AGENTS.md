@@ -48,7 +48,7 @@
 ## フロントの設計
 
 - MVVM＋Atomic Designを採用する。機能を先に分け、その中をviews・view-models・modelsで分ける。共通の通信・端末保存はinfrastructureへ置く。
-- Viewは描画・DOM・ジェスチャー・イベント通知を担当する。Pageが子のemitとViewModelの操作を結ぶ。子に業務処理を持たせない。
+- Viewは描画・DOM・ブラウザイベントの受け渡しを担当する。タッチ情報は座標などの値に変換してViewModelへ渡す。ジェスチャーの状態・方向・距離・成立判定はmodelsの名前を付けた部品が持ち、ViewModelが操作の結果を処理へつなぐ。TouchEventやDOMをModelへ渡さない。Pageが子のemitとViewModelの操作を結び、子に業務処理を持たせない。
 - ViewModelはページ固有の状態・computedによる表示用データ・操作窓口を持つ。共通の記事状態はPinia Storeへ集め、同じ記事状態をページごとに重複保持しない。
 - ModelはStoreと同期Serviceなどを含む。Storeは値と状態遷移、同期Serviceは端末保存・送信・再送の手順を担当する。Viewを参照しない。
 - 共有同期Serviceはappで一度組み立てる。Pageの終了で共通の送信処理を止めず、アプリ終了時に解放する。
