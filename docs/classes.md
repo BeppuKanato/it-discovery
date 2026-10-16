@@ -171,7 +171,7 @@ classDiagram
         <<interface>>
         +getSortingCandidates() ／ 仕分け対象をサーバーへ要求する
         +getArticlePage(kind, cursor, limit) ／ 一覧の一ページを要求する
-        +registerInterests(articleIds) ／ 登録対象IDをまとめて送信する
+        +registerInterests(batchId, revision, articleIds) ／ 登録対象IDをまとめて送信する
         +setInterested(articleId, value) ／ 気になる状態の保存を要求する
         +setPinned(articleId, value) ／ ピン状態の保存を要求する
         +recordOpened(articleId, openedAt) ／ 既読と開いた日時を送信する
@@ -270,7 +270,7 @@ classDiagram
         +register(article) ／ 記事を検証して登録・内容更新をする
         +getSortingCandidates() ／ 仕分け対象を最大10件選ぶ
         +getArticlePage(kind, cursor, limit) ／ 一覧の一ページを返す
-        +registerInterests(articleIds) ／ 気になるを一括登録する
+        +registerInterests(batchId, revision, articleIds) ／ 気になるを一括登録する
         +setInterested(articleId, value) ／ 気になる状態を変更する
         +setPinned(articleId, value) ／ ピン状態を変更する
         +recordOpened(articleId, openedAt) ／ 既読と開いた日時を記録する
@@ -335,6 +335,8 @@ applyRetentionは、保持ルールを満たすDB処理を一つの保存単位�
 | 取得先・保持期限・件数などの設定 | 配置は実装時に選ぶ。数値をコード中へ固定しない |
 
 サーバーへの送信は、仕分けでは開始時と終了時、一覧ではページ取得・状態変更のとき。既読は外部タブ作成と遷移依頼の受付後に端末保存し、非同期送信する。移動は保存完了を待たない。
+
+Issue #9の実装では、対象取得・一括登録・結果照会をArticleSortingService、回の結果保存をArticleInterestBatchRepositoryへ分けた。[実装の構成図](sorting-api.md)を参照する。
 
 ## 操作方針との対応
 

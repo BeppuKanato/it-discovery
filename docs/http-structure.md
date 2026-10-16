@@ -14,15 +14,19 @@ apps/api/src/
 │     ├─ articles.controller.ts        一覧APIの入口
 │     ├─ article-state.controller.ts   状態取得・更新の入口
 │     ├─ article-state-operation.controller.ts
+│     ├─ sorting.controller.ts         仕分け対象・一括登録・結果照会
 │     ├─ formatters/                  HTTP入出力の形を変換する
 │     │  ├─ article-page.formatter.ts
 │     │  ├─ article-state.formatter.ts
-│     │  └─ article-cursor.formatter.ts
+│     │  ├─ article-cursor.formatter.ts
+│     │  ├─ article.formatter.ts
+│     │  └─ article-sorting.formatter.ts
 │     ├─ pipes/                       引数の形式を検査・変換する
 │     │  ├─ article-page-query.pipe.ts
 │     │  └─ article-id.pipe.ts
 │     ├─ filters/                     アプリのエラーをHTTPへ変換する
-│     │  └─ article-state-exception.filter.ts
+│     │  ├─ article-state-exception.filter.ts
+│     │  └─ sorting-exception.filter.ts
 │     └─ tests/                       HTTP APIのテスト
 └─ health/controllers/
    └─ health.controller.ts            疎通確認の入口
@@ -44,10 +48,13 @@ apps/api/src/
 | APIの入口 | 明示したPipe | HTTPエラー処理 | 明示したFormatter |
 |---|---|---|---|
 | GET /api/health | なし | Nest標準 | なし（応答を直接返す） |
-| GET /api/articles | ArticlePageQueryPipe | Controllerで一覧の入力エラーを400へ変換、その他はNest標準 | toArticlePageResponse、カーソル変換 |
+| GET /api/articles | ArticlePageQueryPipe | Controllerで一覧の入力エラーを400へ変換、その他はNest標準 | toArticlePageResponse、toArticleListItem、カーソル変換 |
 | GET /api/articles/:articleId/state | ArticleIdPipe | ArticleStateExceptionFilter、記事なしはControllerが404 | toStateValue |
 | PUT /api/articles/:articleId/state | ArticleIdPipe | ArticleStateExceptionFilter | toStateOperationResponse |
 | GET /api/article-state-operations/:operationId | なし（ID条件はServiceで確認） | ArticleStateExceptionFilter、未記録はControllerが404 | toStateOperationResponse |
+| GET /api/sorting/candidates | なし（最大10件はServiceの固定値） | SortingExceptionFilter、予期しない障害はNest標準 | toSortingCandidatesResponse、toArticleListItem |
+| PUT /api/sorting/interest-batches/:batchId | なし（UUID・本文はServiceのValidatorで確認） | SortingExceptionFilter | toInterestBatchResponse |
+| GET /api/sorting/interest-batches/:batchId | なし（UUIDはServiceのValidatorで確認） | SortingExceptionFilter、未記録はControllerが404 | toInterestBatchResponse |
 
 状態更新の本文の共通条件もServiceが検証を呼ぶ。Pipeがないことは「入力検証がない」という意味ではない。HTTPの文字列から数値への変換と、アプリが受け付ける操作の条件を分けている。
 
@@ -92,4 +99,4 @@ flowchart TD
 
 ## 確認結果
 
-再配置後に全体の型チェック、API127件・web20件の計147件のテスト、ビルドを確認した。ファイルの移動とimport先の変更、登録方針の説明が中心で、APIの振る舞いを追加・変更するテストは必要ないため新設していない。
+Issue #9追加後に全体の型チェック、API193件・web20件の計213件のテスト、ビルドを確認した。ファイルの移動とimport先の変更、登録方針の説明が中心で、APIの振る舞いを追加・変更するテストは必要ないため新設していない。
