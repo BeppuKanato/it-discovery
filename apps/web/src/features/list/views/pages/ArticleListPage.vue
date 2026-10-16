@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted } from 'vue';
 import type { ArticleListKind } from '@it-discovery/contracts';
 import { useArticleListViewModel, type ArticleListServices } from '../../view-models/useArticleListViewModel';
-import { usePullToRefresh } from '../composables/usePullToRefresh';
+import type { PullGestureInput } from '../../models/pull-to-refresh-gesture';
 import ArticleListLayout from '../templates/ArticleListLayout.vue';
 import ArticleListToolbar from '../organisms/ArticleListToolbar.vue';
 import ArticleListContent from '../organisms/ArticleListContent.vue';
@@ -12,33 +12,34 @@ import ArticleSyncStatus from '../organisms/ArticleSyncStatus.vue';
 const props = defineProps<{ services: ArticleListServices }>();
 const vm = useArticleListViewModel(props.services.api, props.services.articleState, props.services.sync);
 const { kind, articles, hasMore, loading, error, syncStatus, refresh, loadMore, retry,
-  togglePin, toggleInterest, retrySync, discardBlocked } = vm;
-// 指の座標と画面スクロールはViewの関心。通信や記事状態から切り離してここで扱う。
-const pull = usePullToRefresh(refresh, () => syncStatus.value.ready && loading.value !== 'initial' && loading.value !== 'refresh');
-const { distance: pullDistance, ready: pullReady } = pull;
+  togglePin, toggleInterest, retrySync, discardBlocked,
+  pullDistance, pullReady, finishPull, cancelPull } = vm;
 onMounted(() => { void vm.initialize(); });
-onUnmounted(() => { pull.cancel(); vm.dispose(); });
+onUnmounted(() => { vm.dispose(); });
 
 function selectKind(value: ArticleListKind): void {
-  pull.cancel();
   if (value !== kind.value) window.scrollTo({ top: 0 });
   void vm.changeKind(value);
 }
-function touchStart(event: TouchEvent): void {
-  if (event.touches.length !== 1 || (event.target instanceof Element && event.target.closest('button,a,input'))) { pull.cancel(); return; }
-  const touch = event.touches[0]!;
-  pull.begin(touch.clientX, touch.clientY, window.scrollY <= 0);
+// Viewはブラウザのイベントを値へ変換する。一本指・方向・距離などの判定はModelへ任せる。
+// DOMに関する事実（先頭にいるか、操作部品を触れたか）だけを取り出す。
+function touchInput(event: TouchEvent): PullGestureInput {
+  const touch = event.touches[0];
+  return { x: touch?.clientX ?? 0, y: touch?.clientY ?? 0, touchCount: event.touches.length,
+    atTop: window.scrollY <= 0,
+    onControl: event.target instanceof Element && event.target.closest('button,a,input') !== null };
 }
+function touchStart(event: TouchEvent): void { vm.beginPull(touchInput(event)); }
 function touchMove(event: TouchEvent): void {
-  if (event.touches.length !== 1) { pull.cancel(); return; }
-  const touch = event.touches[0]!;
-  if (pull.move(touch.clientX, touch.clientY, window.scrollY <= 0) && event.cancelable) event.preventDefault();
+  const preventScroll = vm.movePull(touchInput(event));
+  // preventDefaultはブラウザの制御なのでViewに残す。止める必要があるかはVMの結果を使う。
+  if (preventScroll && event.cancelable) event.preventDefault();
 }
 </script>
 
 <template>
   <!-- Templateへ領域を渡す。#toolbarなどの名前は、Layout側のslot nameと対応する。 -->
-  <ArticleListLayout @touchstart.passive="touchStart" @touchmove="touchMove" @touchend="pull.finish" @touchcancel="pull.cancel">
+  <ArticleListLayout @touchstart.passive="touchStart" @touchmove="touchMove" @touchend="finishPull" @touchcancel="cancelPull">
     <template #header>
       <div class="brand"><span class="brand-mark" aria-hidden="true">i</span><span>IT Discovery</span></div>
     </template>

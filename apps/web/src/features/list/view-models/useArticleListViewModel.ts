@@ -1,8 +1,10 @@
-import { computed, readonly, ref, shallowRef, watch, type WatchStopHandle } from 'vue';
+import { computed, reactive, readonly, ref, shallowRef, watch, type WatchStopHandle } from 'vue';
 import type { ArticleListItem, ArticleListKind } from '@it-discovery/contracts';
 import type { ArticleListApi } from '../models/article-list-api';
 import type { ArticleStateStore } from '../../article-state/models/article-state.store';
 import type { ArticleStateActions, StateField } from '../../article-state/models/state-sync';
+
+import { PullToRefreshGesture, type PullGestureInput } from '../models/pull-to-refresh-gesture';
 
 type LoadMode = 'initial' | 'refresh' | 'append';
 interface ListLoadError { mode: LoadMode; message: string }
@@ -22,6 +24,25 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
   let disposed = false;
   let initializing = false;
   let stopReady: WatchStopHandle | null = null;
+
+  // Modelの状態をVueの変更追跡へ接続するのはVMの役割。Model自体はVueを知らない。
+  // reactiveはこのインスタンスを経由した変更を追跡し、computedでViewへ必要な値だけ公開する。
+  const pullGesture = reactive(new PullToRefreshGesture());
+  const pullDistance = computed(() => pullGesture.distance);
+  const pullReady = computed(() => pullGesture.ready);
+  // disposedはVueの状態ではないため、キャッシュせず操作のたびに現在値を確認する。
+  function canPullToRefresh(): boolean {
+    return !disposed && articleState.status.ready && loading.value !== 'initial' && loading.value !== 'refresh';
+  }
+
+  // Viewから渡された値をModelへ送り、成立した操作を一覧更新へつなぐ。
+  // Modelの移動量やしきい値をViewに判断させず、TouchEventもModelへ渡さない。
+  function beginPull(input: PullGestureInput): void { pullGesture.begin(input, canPullToRefresh()); }
+  function movePull(input: PullGestureInput): boolean { return pullGesture.move(input, canPullToRefresh()); }
+  async function finishPull(): Promise<void> {
+    if (pullGesture.finish(canPullToRefresh())) await refresh();
+  }
+  function cancelPull(): void { pullGesture.cancel(); }
 
   // computedはStoreも追跡する。独自の通知番号を増やして描画を促す必要はない。
   // 表示用の配列を状態として二重保存せず、IDと最新状態から毎回必要な値を求める。
@@ -78,6 +99,7 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
   }
   function changeKind(value: ArticleListKind): Promise<void> {
     if (!articleState.status.ready || value === kind.value || disposed) return Promise.resolve();
+    cancelPull();
     kind.value = value; articleIds.value = []; nextCursor.value = null; hasMore.value = false;
     return request('initial');
   }
@@ -108,9 +130,10 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
   }
 
   // 画面終了では画面の通信・監視だけ止める。共有同期の終了はAppが担当する。
-  function dispose(): void { disposed = true; generation++; activeRequest?.abort(); stopReady?.(); }
+  function dispose(): void { cancelPull(); disposed = true; generation++; activeRequest?.abort(); stopReady?.(); }
   return { kind: readonly(kind), articles, nextCursor: readonly(nextCursor), hasMore: readonly(hasMore),
-    loading: readonly(loading), error: readonly(error), canLoadMore, syncStatus,
+    loading: readonly(loading), error: readonly(error), canLoadMore, syncStatus, pullDistance, pullReady,
+    beginPull, movePull, finishPull, cancelPull,
     initialize, refresh, changeKind, loadMore, retry, togglePin, toggleInterest, retrySync, discardBlocked, dispose };
 }
 export type ArticleListViewModel = ReturnType<typeof useArticleListViewModel>;

@@ -175,6 +175,64 @@ describe('記事一覧の取得と競合', () => {
     state.updateStatus({ ready: true }); await nextTick();
     expect(getArticlePage).not.toHaveBeenCalled();
   });
+  it('座標をModelへ渡し、成立時だけ更新して表示用の距離を戻す', async () => {
+    const getArticlePage = vi.fn().mockResolvedValue(page([1]));
+    const list = createList({ getArticlePage });
+    const touch = { x: 20, y: 20, atTop: true, touchCount: 1, onControl: false };
+    list.beginPull(touch);
+    list.movePull({ ...touch, y: 100 });
+    expect(list.pullDistance.value).toBe(36);
+    expect(list.pullReady.value).toBe(false);
+    await list.finishPull();
+    expect(getArticlePage).not.toHaveBeenCalled();
+    list.beginPull(touch);
+    expect(list.movePull({ ...touch, y: 200 })).toBe(true);
+    expect(list.pullReady.value).toBe(true);
+    await list.finishPull();
+    await list.finishPull();
+    expect(getArticlePage).toHaveBeenCalledTimes(1);
+    expect(list.pullDistance.value).toBe(0);
+  });
+
+  it('取得中・起動待機・画面終了後はジェスチャーから更新しない', async () => {
+    const pending = deferred<ArticlePageResponse>();
+    const getArticlePage = vi.fn().mockReturnValue(pending.promise);
+    const list = createList({ getArticlePage });
+    const touch = { x: 0, y: 0, atTop: true, touchCount: 1, onControl: false };
+    const first = list.refresh();
+    list.beginPull(touch);
+    list.movePull({ ...touch, y: 200 });
+    await list.finishPull();
+    expect(getArticlePage).toHaveBeenCalledTimes(1);
+    pending.resolve(page([1])); await first;
+    list.beginPull(touch); list.movePull({ ...touch, y: 200 });
+    list.dispose();
+    expect(list.pullDistance.value).toBe(0);
+    list.beginPull(touch); list.movePull({ ...touch, y: 200 });
+    expect(list.pullDistance.value).toBe(0);
+    await list.finishPull();
+    expect(getArticlePage).toHaveBeenCalledTimes(1);
+    const state = useArticleStateStore(createPinia());
+    const waitingApi = { getArticlePage: vi.fn() };
+    const waiting = useArticleListViewModel(waitingApi, state, {
+      start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn(),
+    });
+    waiting.beginPull(touch); waiting.movePull({ ...touch, y: 200 }); await waiting.finishPull();
+    expect(waitingApi.getArticlePage).not.toHaveBeenCalled();
+  });
+
+  it('タブ切り替えとタッチ中止では途中の操作を破棄する', async () => {
+    const getArticlePage = vi.fn().mockResolvedValue(page([]));
+    const list = createList({ getArticlePage });
+    const touch = { x: 0, y: 0, atTop: true, touchCount: 1, onControl: false };
+    list.beginPull(touch); list.movePull({ ...touch, y: 200 }); list.cancelPull();
+    await list.finishPull(); expect(getArticlePage).not.toHaveBeenCalled();
+    list.beginPull(touch); list.movePull({ ...touch, y: 200 });
+    await list.changeKind('interested');
+    expect(list.pullDistance.value).toBe(0);
+    await list.finishPull(); expect(getArticlePage).toHaveBeenCalledTimes(1);
+  });
+
 });
 
 function createList(api: ArticleListApi) {
