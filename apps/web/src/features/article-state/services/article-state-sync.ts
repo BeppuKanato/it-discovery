@@ -1,34 +1,25 @@
-import type { ArticleListItem, ArticleStateOperationResponse, ArticleStateValue } from '@it-discovery/contracts';
+import { createPinia } from 'pinia';
+import { useArticleStateStore, type ArticleStateStore, type QueuedStateOperation } from '../models/article-state.store';
+import type { ArticleListItem, ArticleStateOperationResponse } from '@it-discovery/contracts';
 import { StateRequestError, type ArticleStateApi, type PendingStateOperation, type StateField, type StateOperationStore, type StateProjection } from '../models/state-sync';
 
-interface QueuedOperation {
-  record: PendingStateOperation;
-  persisted: boolean;
-  lookup: boolean;
-  settled: boolean;
-  blocked: boolean;
-  attempts: number;
-}
-interface ArticleEntry {
-  article: ArticleListItem;
-  confirmed: ArticleStateValue;
-  // 項目ごとに、最後に変更した時点を持つ。古い一覧応答で確定値を戻さないために使う。
-  fields: Partial<Record<StateField, number>>;
-  missing: boolean;
-}
 interface StorageJob { run(): Promise<void>; done(): void }
 
-// VueやAxiosに依存せず、端末保存・記事ごとの送信順・再送・希望状態の合成を担当する。
+// 同期の手順を担当する。記事の状態と表示用の合成は注入されたStoreが管理する。
 export class ArticleStateSync implements StateProjection {
-  version = 0;
-  ready = false;
-  initialized = false;
-  notice = '';
-  storageError = false;
-  startupError = '';
-  online = true;
-  private operations: QueuedOperation[] = [];
-  private entries = new Map<number, ArticleEntry>();
+  get version() { return this.state.version; }
+  get ready() { return this.state.status.ready; }
+  get initialized() { return this.state.status.initialized; }
+  set initialized(value: boolean) { this.state.updateStatus({ initialized: value }); }
+  get notice() { return this.state.status.notice; }
+  set notice(value: string) { this.state.updateStatus({ notice: value }); }
+  get storageError() { return this.state.status.storageError; }
+  set storageError(value: boolean) { this.state.updateStatus({ storageError: value }); }
+  get startupError() { return this.state.status.startupError; }
+  set startupError(value: string) { this.state.updateStatus({ startupError: value }); }
+  get online() { return this.state.status.online; }
+  set online(value: boolean) { this.state.updateStatus({ online: value }); }
+  private get operations() { return this.state.operations; }
   private jobs: StorageJob[] = [];
   private writing = false;
   private running = new Map<number, AbortController>();
@@ -44,11 +35,12 @@ export class ArticleStateSync implements StateProjection {
     private readonly acquire: () => Promise<(() => void) | null>,
     private readonly changed: () => void = () => {},
     private readonly makeId: () => string = () => crypto.randomUUID(),
+    readonly state: ArticleStateStore = useArticleStateStore(createPinia()),
   ) {}
 
-  get pendingCount(): number { return this.operations.length; }
-  get blockedCount(): number { return this.operations.filter((op) => op.blocked).length; }
-  get canChange(): boolean { return this.ready && !this.storageError && !this.disposed; }
+  get pendingCount(): number { return this.state.pendingCount; }
+  get blockedCount(): number { return this.state.blockedCount; }
+  get canChange(): boolean { return this.state.canChange; }
 
   // 最初は所有権と端末保存を確認する。復元した未送信があれば、解消するまで一覧開始を待つ。
   async start(): Promise<void> {
@@ -62,10 +54,9 @@ export class ArticleStateSync implements StateProjection {
       if (this.disposed) { this.release?.(); this.release = null; return; }
       for (const record of records) {
         this.order = Math.max(this.order, record.order);
-        this.remember(record.article);
-        this.entries.get(record.article.articleId)!.fields[record.request.change.kind] = ++this.version;
+
         // 再起動前の要求が処理済みかもしれないため、最初に操作IDの結果を照会する。
-        this.operations.push({ record, persisted: true, lookup: true, settled: false, blocked: false, attempts: 0 });
+        this.state.enqueue(record, true, true);
       }
       this.initialized = true;
       this.updateReady();
@@ -75,72 +66,26 @@ export class ArticleStateSync implements StateProjection {
     } finally { this.starting = false; this.changed(); }
   }
 
-  private remember(article: ArticleListItem): ArticleEntry {
-    let entry = this.entries.get(article.articleId);
-    if (!entry) {
-      entry = { article, confirmed: { ...article.state }, fields: {}, missing: false };
-      this.entries.set(article.articleId, entry);
-    }
-    return entry;
-  }
-
   // 操作は即時表示する。サーバーへ送るのは端末へのputが完了した後だけ。
   change(article: ArticleListItem, field: StateField): void {
-    if (!this.canChange || this.entries.get(article.articleId)?.missing) return;
-    const entry = this.remember(article);
+    if (!this.canChange || this.state.entries.get(article.articleId)?.missing) return;
     const current = this.project(article)!;
     const record: PendingStateOperation = {
       // 一覧はVueのreadonlyで包まれる場合があるため、保存用には通常のオブジェクトへ写す。
       order: ++this.order, article: { ...current, source: { ...current.source }, state: { ...current.state } },
       request: { operationId: this.makeId(), change: { kind: field, value: !current.state[field] } },
     };
-    entry.fields[field] = ++this.version;
-    const op: QueuedOperation = { record, persisted: false, lookup: false, settled: false, blocked: false, attempts: 0 };
-    this.operations.push(op);
-    this.jobs.push({ run: () => this.store.put(record), done: () => { op.persisted = true; } });
+    const op = this.state.enqueue(record, false, false);
+    this.jobs.push({ run: () => this.store.put(copyOperation(record)), done: () => { op.persisted = true; } });
     this.changed();
     void this.drainStorage();
   }
 
-  // 一覧取得の開始時点より後の操作と、未確定の変更を古いDB状態で上書きしない。
-  accept(articles: ArticleListItem[], readVersion: number): void {
-    for (const article of articles) {
-      const entry = this.entries.get(article.articleId);
-      if (!entry) continue;
-      entry.article = article;
-      for (const field of ['interested', 'pinned'] as const) {
-        const pending = this.operations.some((op) => !op.settled && op.record.article.articleId === article.articleId && op.record.request.change.kind === field);
-        if (!pending && readVersion >= (entry.fields[field] ?? 0)) entry.confirmed[field] = article.state[field];
-      }
-    }
-  }
-
-  // 確定値へ未送信操作を順番に重ねる。後続操作があれば古い成功・失敗でも希望を消さない。
-  project(article: ArticleListItem): ArticleListItem | null {
-    const entry = this.entries.get(article.articleId);
-    if (!entry) return article;
-    if (entry.missing) return null;
-    const state = { ...article.state };
-    for (const field of ['interested', 'pinned'] as const) {
-      if (entry.fields[field] !== undefined) state[field] = entry.confirmed[field];
-    }
-    for (const op of this.operations) {
-      if (!op.settled && op.record.article.articleId === article.articleId) {
-        state[op.record.request.change.kind] = op.record.request.change.value;
-      }
-    }
-    return { ...article, state };
-  }
-
-  // 気になる一覧から即時に消えたカードも保持し、確定失敗時に並び順を計算し直して復元する。
-  supplements(): ArticleListItem[] {
-    return [...this.entries.values()].filter((entry) => !entry.missing && entry.fields.interested !== undefined).map((entry) => entry.article);
-  }
-
-  private updateReady(): void {
-    if (this.initialized && this.operations.length === 0) this.ready = true;
-    this.changed();
-  }
+  // 状態の読み取りと表示用の合成はStoreに集約する。
+  accept(articles: ArticleListItem[], readVersion: number): void { this.state.accept(articles, readVersion); }
+  project(article: ArticleListItem): ArticleListItem | null { return this.state.project(article); }
+  supplements(): ArticleListItem[] { return this.state.supplements(); }
+  private updateReady(): void { this.state.updateReady(); this.changed(); }
 
   // 全記事で共有する端末保存の順番。失敗したジョブを先頭に残し、再試行からやり直す。
   private async drainStorage(): Promise<void> {
@@ -196,25 +141,15 @@ export class ArticleStateSync implements StateProjection {
   }
 
   // 成功した項目だけ確定値へ反映する。応答中の他の項目で、別の判断を上書きしない。
-  private complete(op: QueuedOperation, result?: ArticleStateOperationResponse): void {
+  private complete(op: QueuedStateOperation, result?: ArticleStateOperationResponse): void {
     if (op.settled) return;
-    const entry = this.entries.get(op.record.article.articleId)!;
-    const field = op.record.request.change.kind;
-    if (result?.status === 'saved') entry.confirmed[field] = result.state[field];
-    if (result?.status === 'missing') { entry.missing = true; this.notice = '保持されていない記事があったため、その記事の変更は登録できませんでした。'; }
-    entry.fields[field] = ++this.version;
-    op.settled = true;
-    op.blocked = false;
-    // 後続の保存用カードには、直前までの確定値を残す。
-    // 例えば先行の登録が拒否された後に再起動しても、拒否前の希望値を復元の基準にしない。
-    for (const later of this.operations) {
-      if (later === op || later.record.article.articleId !== op.record.article.articleId) continue;
-      later.record.article = { ...later.record.article, state: { ...entry.confirmed } };
-      this.jobs.push({ run: () => this.store.put(later.record), done: () => {} });
+    // Storeが状態を確定し、再起動時の基準を直した後続レコードを返す。
+    for (const record of this.state.settle(op, result)) {
+      this.jobs.push({ run: () => this.store.put(copyOperation(record)), done: () => {} });
     }
     // サーバーで成功しても端末削除が失敗することがある。削除完了まで後続を送らない。
     this.jobs.push({ run: () => this.store.remove(op.record.request.operationId), done: () => {
-      this.operations = this.operations.filter((item) => item !== op);
+      this.state.remove(op.record.request.operationId);
       this.updateReady();
     } });
     this.changed();
@@ -249,6 +184,7 @@ export class ArticleStateSync implements StateProjection {
 
   dispose(): void {
     this.disposed = true;
+    this.state.updateStatus({ stopped: true });
     for (const timer of this.timers.values()) clearTimeout(timer);
     for (const controller of this.running.values()) controller.abort();
     // IndexedDBへの処理中の書き込みが終わってから所有権を渡す。
@@ -259,4 +195,13 @@ export class ArticleStateSync implements StateProjection {
     };
     releaseWhenIdle();
   }
+}
+
+// Piniaが追跡するProxyを、IndexedDBへ渡せる通常のデータへ写す。
+// 全フィールドがJSON用の値なので、関数やブラウザAPIの実体は含まれない。
+function copyOperation(record: PendingStateOperation): PendingStateOperation {
+  return { order: record.order,
+    article: { ...record.article, source: { ...record.article.source }, state: { ...record.article.state } },
+    request: { operationId: record.request.operationId, change: { ...record.request.change } },
+  };
 }
