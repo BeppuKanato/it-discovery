@@ -4,7 +4,7 @@ import SelectButton from 'primevue/selectbutton';
 import type { ArticleListKind } from '@it-discovery/contracts';
 
 // Organism：一覧の選択と更新をまとめる。選択値は親が持ち、ここではコピーして保存しない。
-defineProps<{ kind: ArticleListKind; count: number; disabled: boolean; refreshing: boolean }>();
+defineProps<{ kind: ArticleListKind; count: number; disabled: boolean; busy: boolean; refreshing: boolean }>();
 const emit = defineEmits<{ select: [kind: ArticleListKind]; refresh: [] }>();
 const options = [{ label: 'すべて', value: 'all' }, { label: '気になる', value: 'interested' }];
 function select(value: unknown): void {
@@ -21,7 +21,8 @@ function select(value: unknown): void {
       :allow-empty="false" fluid aria-label="記事一覧の種類" class="list-tabs" @update:model-value="select" />
     <div class="caption">
       <span>取得した日時が新しい順<span v-if="count"> · {{ count }}件</span></span>
-      <Button type="button" label="更新" text size="small" aria-label="一覧を更新" :disabled="disabled" :loading="refreshing" @click="emit('refresh')">
+      <!-- 一覧取得中もタブ切り替えは可能。更新ボタンの連打だけをbusyで止める。 -->
+      <Button type="button" label="更新" text size="small" aria-label="一覧を更新" :disabled="disabled || busy" :loading="refreshing" @click="emit('refresh')">
         <template #icon><span aria-hidden="true" class="refresh-icon">↻</span></template>
       </Button>
     </div>

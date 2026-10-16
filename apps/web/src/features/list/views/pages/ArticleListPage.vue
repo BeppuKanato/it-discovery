@@ -49,7 +49,7 @@ function touchMove(event: TouchEvent): void {
     </template>
     <template #toolbar>
       <ArticleListToolbar :kind="kind" :count="articles.length" :refreshing="loading === 'refresh'"
-        :disabled="!syncStatus.ready || loading === 'initial' || loading === 'refresh'" @select="selectKind" @refresh="refresh" />
+        :disabled="!syncStatus.ready" :busy="loading === 'initial' || loading === 'refresh'" @select="selectKind" @refresh="refresh" />
     </template>
     <template #status>
       <ArticleSyncStatus :status="syncStatus" @retry="retrySync" @discard="discardBlocked" />
