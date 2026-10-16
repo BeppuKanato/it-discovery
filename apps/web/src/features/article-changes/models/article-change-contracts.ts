@@ -1,12 +1,12 @@
 import type { ArticleListItem, ArticleStateMutationRequest, ArticleStateOperationResponse } from '@it-discovery/contracts';
 
 // ここでは一覧の二つの操作だけを扱う。元記事を開いたときの既読操作はIssue #12で接続する。
-export type StateField = 'interested' | 'pinned';
+export type ArticleChangeField = 'interested' | 'pinned';
 export interface UnfinishedArticleChange {
   order: number;
   // 再起動時に一覧を取り直す前でも状態を復元できるよう、記事の写しを残す。
   article: ArticleListItem;
-  request: ArticleStateMutationRequest & { change: { kind: StateField; value: boolean } };
+  request: ArticleStateMutationRequest & { change: { kind: ArticleChangeField; value: boolean } };
 }
 
 // 通信と端末保存の実装を分け、順序制御を本物のサーバーなしでも確認できるようにする。
@@ -29,7 +29,7 @@ export class ArticleChangeRequestError extends Error {
 // 記事変更を復元・保存する操作の約束。起動Modelと同期Modelの接続に使う。
 export interface ArticleChangeActions {
   restoreAndSyncUnfinishedChanges(): Promise<void>;
-  setArticleState(articleId: number, field: StateField, value: boolean): void;
+  setArticleState(articleId: number, field: ArticleChangeField, value: boolean): void;
   retryUnfinishedChanges(): void;
   discardBlockedChanges(): void;
 }
@@ -49,7 +49,7 @@ export interface ArticleSyncDisplay {
 // 画面が利用するModelの窓口。起動処理やAPI・Storeの実装を含めない。
 export interface ArticleChangeViewActions {
   getSyncDisplay(): ArticleSyncDisplay;
-  toggleArticleField(articleId: number, field: StateField): void;
+  toggleArticleField(articleId: number, field: ArticleChangeField): void;
   retryUnfinishedChanges(): void;
   discardBlockedChanges(): void;
 }

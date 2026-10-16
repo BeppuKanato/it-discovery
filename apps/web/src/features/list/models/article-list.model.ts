@@ -25,13 +25,19 @@ export function createArticleListModel(api: ArticleListApi, articleData: Article
   // 表示用の配列を二重保存せず、ページID列＋登録変更したIDから求める。
   // 後者は、登録直後の追加と解除拒否後の復元に使う。旧supplementsの意味をここへ閉じ込める。
   const displayedArticles = computed(() => {
-    const ids = new Set(pageArticleIds.value);
+    // 1. 取得したページのIDに、登録直後・解除拒否時の復元に必要なIDを補う。
+    const candidateArticleIds = new Set(pageArticleIds.value);
     if (selectedKind.value === 'interested') {
-      for (const id of articleData.getLocallyChangedInterestIds()) ids.add(id);
+      for (const id of articleData.getLocallyChangedInterestIds()) candidateArticleIds.add(id);
     }
-    return [...ids].map((id) => articleChanges.applyUnfinishedChanges(articleData.getConfirmedArticle(id)))
-      .filter((article): article is ArticleListItem => article !== null && (selectedKind.value === 'all' || article.state.interested))
-      .sort((a, b) => Date.parse(b.fetchedAt) - Date.parse(a.fetchedAt) || b.articleId - a.articleId);
+    // 2. 確定した記事へ、端末で操作した最新の希望値を重ねる。
+    const currentArticles = [...candidateArticleIds].map((id) =>
+      articleChanges.applyUnfinishedChanges(articleData.getConfirmedArticle(id)));
+    // 3. 削除済みを除き、気になる一覧なら希望状態が登録済みの記事だけ残す。
+    const matchingArticles = currentArticles.filter((article): article is ArticleListItem =>
+      article !== null && (selectedKind.value === 'all' || article.state.interested));
+    // 4. 取得日時が同じ場合はIDも使い、カードの順番が揺れないようにする。
+    return matchingArticles.sort((a, b) => Date.parse(b.fetchedAt) - Date.parse(a.fetchedAt) || b.articleId - a.articleId);
   });
   const canLoadMore = computed(() => articleChanges.syncStatus.startupSyncComplete && hasMore.value && nextCursor.value !== null && listLoading.value === null && listError.value === null);
 
@@ -64,10 +70,12 @@ export function createArticleListModel(api: ArticleListApi, articleData: Article
     }
   }
 
+  // 更新成功後に先頭ページで置き換える。失敗した場合は既存の一覧を残す。
   function refreshArticles(): Promise<void> {
     if (listLoading.value === 'initial' || listLoading.value === 'refresh') return Promise.resolve();
     return loadPage(pageArticleIds.value.length ? 'refresh' : 'initial');
   }
+  // 一覧の種類を変える。前の要求はloadPageが中止し、遅い応答も世代番号で捨てる。
   function changeListKind(value: ArticleListKind): Promise<void> {
     if (!articleChanges.syncStatus.startupSyncComplete || value === selectedKind.value || disposed) return Promise.resolve();
     selectedKind.value = value; pageArticleIds.value = []; nextCursor.value = null; hasMore.value = false;

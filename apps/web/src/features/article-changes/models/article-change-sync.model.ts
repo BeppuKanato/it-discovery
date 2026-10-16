@@ -1,7 +1,7 @@
 import type { ArticleDataStore } from '../../articles/models/article-data.store';
 import { type ArticleChangeStore, type TrackedArticleChange } from './article-change.store';
 import type { ArticleStateOperationResponse } from '@it-discovery/contracts';
-import { ArticleChangeRequestError, type ArticleSyncDisplay, type ArticleChangeApi, type UnfinishedArticleChange, type StateField, type UnfinishedArticleChangeStorage } from './article-change-contracts';
+import { ArticleChangeRequestError, type ArticleSyncDisplay, type ArticleChangeApi, type UnfinishedArticleChange, type ArticleChangeField, type UnfinishedArticleChangeStorage } from './article-change-contracts';
 
 interface StorageJob { run(): Promise<void>; done(): void }
 
@@ -57,13 +57,13 @@ export class ArticleChangeSyncModel {
   }
 
   // 現在の希望状態を読み、反転を一度だけ明示値にして保存する。再送は反転しない。
-  toggleArticleField(articleId: number, field: StateField): void {
+  toggleArticleField(articleId: number, field: ArticleChangeField): void {
     const current = this.readArticle(articleId);
     if (current) this.setArticleState(articleId, field, !current.state[field]);
   }
 
   // 操作は即時表示する。サーバーへ送るのは端末へのputが完了した後だけ。
-  setArticleState(articleId: number, field: StateField, value: boolean): void {
+  setArticleState(articleId: number, field: ArticleChangeField, value: boolean): void {
     if (!this.changes.canChangeArticles) return;
     const current = this.readArticle(articleId);
     if (!current) return;

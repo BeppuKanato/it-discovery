@@ -1,7 +1,7 @@
 import { computed, reactive, ref } from 'vue';
 import { defineStore } from 'pinia';
 import type { ArticleListItem, ArticleStateValue } from '@it-discovery/contracts';
-import type { UnfinishedArticleChange, StateField } from './article-change-contracts';
+import type { UnfinishedArticleChange, ArticleChangeField } from './article-change-contracts';
 
 // 未完了とは、送信前・送信中・結果不明・再試行待ち・端末記録の削除待ちを含む。
 export interface TrackedArticleChange {
@@ -39,7 +39,7 @@ export const useArticleChangeStore = defineStore('article-changes', () => {
     unfinishedChanges.value.push({ record, persisted, lookup, settled: false, blocked: false, attempts: 0 });
     return unfinishedChanges.value[unfinishedChanges.value.length - 1]!;
   }
-  function hasUnfinishedFieldChange(articleId: number, field: StateField): boolean {
+  function hasUnfinishedFieldChange(articleId: number, field: ArticleChangeField): boolean {
     return unfinishedChanges.value.some((change) => !change.settled && change.record.article.articleId === articleId && change.record.request.change.kind === field);
   }
   // 記事データは変更せず、表示時だけ未確定の希望値を順番に重ねる。

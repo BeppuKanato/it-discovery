@@ -1,7 +1,7 @@
 import type { Pinia } from 'pinia';
 import { ApiClient } from '../infrastructure/api/api-client';
 import { IndexedDbUnfinishedArticleChangeStorage } from '../infrastructure/storage/indexeddb-article-change.storage';
-import { acquireStateSyncOwner } from '../infrastructure/state-sync-owner';
+import { acquireArticleChangeOwnership } from '../infrastructure/article-change-ownership';
 import { useArticleDataStore } from '../features/articles/models/article-data.store';
 import { useArticleChangeStore } from '../features/article-changes/models/article-change.store';
 import { ArticleChangeSyncModel } from '../features/article-changes/models/article-change-sync.model';
@@ -18,7 +18,7 @@ export function createApplicationModels(pinia: Pinia, baseURL: string) {
   const scope = 'it-discovery:article-state:' + new URL(baseURL, window.location.href).href;
   const unfinishedChangeStorage = new IndexedDbUnfinishedArticleChangeStorage(scope);
   const articleChanges = new ArticleChangeSyncModel(api, unfinishedChangeStorage,
-    () => acquireStateSyncOwner(scope), changeStore, articleData);
+    () => acquireArticleChangeOwnership(scope), changeStore, articleData);
   const startup = createApplicationStartupModel(articleChanges, changeStore);
   // 同期はアプリ全体で共有する。一覧Modelだけは画面ごとに作り、取得条件を共有しない。
   function createArticleList() { return createArticleListModel(api, articleData, changeStore); }
