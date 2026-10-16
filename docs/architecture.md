@@ -44,7 +44,7 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 | パッケージ管理 | npm workspaces | 1つのリポジトリにweb・api・共有型を置き、ルートで依存を管理する |
 | 動作確認 | webはVitest、apiはJest | 仕分けの履歴・通信順・SQLiteの保護と保存を、それぞれ適した範囲で確認する |
 
-これらは実装開始用の選択。Issue #5の基盤ではVue 3.5・Vite 8・Nest 12・Axios 1・TypeScript 5.9を選び、package-lock.jsonに固定した。Node.js 24.15以上の24 LTSを使う。最低要件はNest CLIの間接依存とJestからNest 12のES Modulesを読む互換性も含めている。Pinia・Vue Router・DB・idb・定期実行は、利用する機能のIssueで追加する。サーバーのHTTPアダプターはNest標準のExpressを初期構成とし、Fastifyへの変更は必要が出てから検討する。
+これらは実装開始用の選択。Issue #5の基盤ではVue 3.5・Vite 8・Nest 12・Axios 1・TypeScript 5.9を選び、package-lock.jsonに固定した。Node.js 24.15以上の24 LTSを使う。最低要件はNest CLIの間接依存とJestからNest 12のES Modulesを読む互換性も含めている。DBはIssue #6、idbはIssue #11で追加した。Pinia・Vue Router・定期実行は、利用する機能のIssueで追加する。サーバーのHTTPアダプターはNest標準のExpressを初期構成とし、Fastifyへの変更は必要が出てから検討する。
 
 better-sqlite3のDB処理は同期であり、Promiseに包むだけでは処理中の待ち時間は消えない。個人利用・短いDB処理を前提に選び、外部取得はトランザクションの外で行う。件数削除などの長い処理が問題になった場合に分離を検討する。ネイティブモジュールの互換性はDockerのLinux環境でも確認し、ホストのnode_modulesをイメージへ持ち込まない。
 
@@ -207,6 +207,8 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 | ApiSourceAdapter | api/src/collection/adapters/github-releases.adapter.ts | 初期対象のGitHub ReleasesをAPIで取得する |
 | ArticleNormalizer | api/src/collection/article-normalizer.ts | 外部データを共通形式へ変換する。識別条件はArticleServiceが作る |
 | RetentionService | api/src/retention/retention.service.ts | 保護・期限・件数から保持を判断する |
+
+Issue #11の実装済みの配置・依存関係は[一覧操作の構成図](article-list-state.md)を参照する。一覧変更はfeatures/article-state内のcontrollers（Composable）・services・repositories・modelsに配置した。以下のPinia・仕分けの構成は後続実装の方針であり、現時点の全てのファイル名ではない。
 
 画面は描画と入力受付、composableは操作の進行、Serviceは通信・保存の調整を担当する。一覧と仕分けで共通に表示する記事状態はPiniaのID別状態を使い、サーバー確定値と未確定の表示変更を区別する。ページのID列・カーソル・取得世代は一覧側、その回の履歴はSortingSession側に置く。
 

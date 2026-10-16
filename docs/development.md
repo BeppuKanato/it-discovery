@@ -2,7 +2,7 @@
 
 [README](../README.md) · [技術構成](architecture.md)
 
-現在はSQLiteと一覧API、全記事・気になる一覧画面、気になる・ピン・既読の状態変更・確認API、仕分け対象取得・一括登録APIまで実装している。[一覧画面の構成・確認結果](article-list-ui.md)を参照する。仕分け・収集・認証・本番公開は後続Issueで追加する。
+現在はSQLiteと一覧API、全記事・気になる一覧画面、気になる・ピン・既読の状態変更・確認API、仕分け対象取得・一括登録APIまで実装している。[一覧画面の構成・確認結果](article-list-ui.md)を参照する。一覧の気になる・ピン操作と未送信の端末保存も実装した。[一覧操作の構成図](article-list-state.md)を参照する。仕分け・収集・認証・本番公開は後続Issueで追加する。
 
 ## 必要な環境
 
@@ -10,7 +10,7 @@
 - npm 10以上。npm workspacesを使い、依存はルートのpackage-lock.jsonで固定する。
 - Git。
 
-TypeScriptは5.9系を使う。今回のVue型チェックとNestのコンパイルで互換性を確認し、TypeScript 7への移行は含めない。Issue #6でDrizzle ORM 0.45.4・better-sqlite3 13.0.3・Drizzle Kit 0.31.11・tsx 4.23.15を追加した。[SQLiteの手順](database.md)を参照する。Pinia・Vue Router・idb・定期実行は後続Issueで追加する。
+TypeScriptは5.9系を使う。今回のVue型チェックとNestのコンパイルで互換性を確認し、TypeScript 7への移行は含めない。Issue #6でDrizzle ORM 0.45.4・better-sqlite3 13.0.3・Drizzle Kit 0.31.11・tsx 4.23.15を追加した。[SQLiteの手順](database.md)を参照する。Issue #11でidb 8.0.4と、テスト用のfake-indexeddb 6.2.5を追加した。Pinia・Vue Router・定期実行は必要な機能のIssueで追加する。
 
 .npmrcでNode.jsの要件を満たさないインストールを拒否する。Nest 12のES ModulesをJestが読み込むため、APIのテストコマンドだけでNodeのexperimental-vm-modulesを指定する。通常のアプリ起動には指定しない。
 
@@ -39,7 +39,7 @@ APIだけを確認する場合は http://127.0.0.1:3000/api/health を開く。
 
 `npm run dev`は共有型を先にビルドし、共有型・Nest・Viteを監視する。どれかが終了したら他も終了する。終了はCtrl+C。既定のポートが使われていれば勝手に別ポートへ切り替えず、設定を直して起動し直す。
 
-APIの状態変更・再送確認は[状態変更APIの手順](article-state-api.md)を参照する。画面の状態変更ボタンは後続Issueで接続する。
+APIの状態変更・再送確認は[状態変更APIの手順](article-state-api.md)を参照する。一覧の気になる・ピン操作は[一覧操作の手順](article-list-state.md)を参照する。元記事を開く・既読は後続Issueで接続する。
 
 仕分け対象と最終結果の一括登録は[仕分けAPI](sorting-api.md)を参照する。仕分けのカードUIは後続Issueで実装する。
 
