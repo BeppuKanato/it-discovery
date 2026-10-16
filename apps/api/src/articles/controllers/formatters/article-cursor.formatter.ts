@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import type { ArticleListKind, ArticlePagePosition } from '../models/article-page';
+import type { ArticleListKind, ArticlePagePosition } from '../../models/article-page';
 
 // 一覧の種類と続き位置をURLで扱える文字列へ変換する。
 export function encodeArticleCursor(position: ArticlePagePosition, kind: ArticleListKind): string {

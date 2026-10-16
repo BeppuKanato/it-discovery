@@ -2,7 +2,7 @@
 
 [READMEに戻る](../README.md) · [データ方針](data-policy.md) · [保存基盤の構成](storage-architecture.md)
 
-DBに保持中の記事を一ページずつ取得する。外部サイトの収集や一覧画面、気になる・ピン・既読を変更するAPIは後続Issueで扱う。
+DBに保持中の記事を一ページずつ取得する。[一覧画面](article-list-ui.md)と[状態変更API](article-state-api.md)は別Issueで追加した。外部サイトの収集は後続Issueで扱う。
 
 ## 呼び出し方
 
@@ -123,9 +123,9 @@ sequenceDiagram
 - [Repositoryの約束](../apps/api/src/articles/repositories/article.repository.ts)：findPageで種類・位置・件数を指定する。
 - [SQLite実装](../apps/api/src/articles/repositories/sqlite-article.repository.ts)：WHERE・ORDER BY・LIMITを使う。
 - [HTTP Controller](../apps/api/src/articles/controllers/articles.controller.ts)：受付と入力エラーのHTTP変換をする。
-- [Query Pipe](../apps/api/src/articles/controllers/article-page-query.pipe.ts)：HTTPパラメータを変換する。
-- [カーソル](../apps/api/src/articles/controllers/article-cursor.ts)：位置を文字列へ変換し、復元する。
-- [応答変換](../apps/api/src/articles/controllers/article-page.response.ts)：表示に必要な値だけを返す。
+- [Query Pipe](../apps/api/src/articles/controllers/pipes/article-page-query.pipe.ts)：HTTPパラメータを変換する。
+- [カーソル](../apps/api/src/articles/controllers/formatters/article-cursor.formatter.ts)：位置を文字列へ変換し、復元する。
+- [応答変換](../apps/api/src/articles/controllers/formatters/article-page.formatter.ts)：表示に必要な値だけを返す。
 - [API共有型](../packages/contracts/src/articles.ts)：ブラウザと共有するJSONの型を定める。
 
 ## 動作確認

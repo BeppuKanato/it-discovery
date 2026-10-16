@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, type PipeTransform } from '@nestjs/common';
-import { ARTICLE_PAGE_SIZE, type ArticlePageQuery } from '../models/article-page';
-import { decodeArticleCursor } from './article-cursor';
+import { ARTICLE_PAGE_SIZE, type ArticlePageQuery } from '../../models/article-page';
+import { decodeArticleCursor } from '../formatters/article-cursor.formatter';
 
 @Injectable()
 export class ArticlePageQueryPipe implements PipeTransform<unknown, ArticlePageQuery> {

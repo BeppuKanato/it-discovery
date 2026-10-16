@@ -1,6 +1,6 @@
 import type { ArticlePageResponse } from '@it-discovery/contracts';
-import type { ArticleListKind, ArticlePage } from '../models/article-page';
-import { encodeArticleCursor } from './article-cursor';
+import type { ArticleListKind, ArticlePage } from '../../models/article-page';
+import { encodeArticleCursor } from './article-cursor.formatter';
 
 // 内部データを表示用JSONへ変換し、日時とカーソルを文字列にする。
 export function toArticlePageResponse(page: ArticlePage, kind: ArticleListKind): ArticlePageResponse {

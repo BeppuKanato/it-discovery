@@ -101,15 +101,27 @@ apps/
         articles.module.ts
         controllers/
           articles.controller.ts    # 一覧取得のHTTP入口
-          article-page-query.pipe.ts # HTTPパラメータの形式を確認
-          article-cursor.ts         # 文字列と続き位置の変換
-          article-page.response.ts  # 内部データとJSONの変換
+          article-state.controller.ts
+          article-state-operation.controller.ts
+          pipes/
+            article-page-query.pipe.ts # HTTPパラメータの形式を確認
+            article-id.pipe.ts
+          formatters/
+            article-cursor.formatter.ts # 文字列と続き位置の変換
+            article-page.formatter.ts   # 内部データとJSONの変換
+            article-state.formatter.ts
+          filters/
+            article-state-exception.filter.ts
+          tests/                    # ControllerのHTTPテスト
         services/
           article.service.ts       # 検証・識別・登録更新の手順
         repositories/
           article.repository.ts    # Repositoryの約束・DIトークン
           sqlite-article.repository.ts
           article.mapper.ts        # DBの行を共通形式へ変換
+        validators/
+          article-id.validator.ts   # PipeとServiceで共有するID検証
+          article-state-operation.validator.ts
         models/
           article.ts
           article-state.ts
@@ -153,7 +165,9 @@ docs/
   ui-reference.md
 ```
 
-Issue #6ではarticles・settingsと共通DB基盤を追加した。Issue #7で全記事・気になる一覧の取得APIを追加した。実際のテーブル、マイグレーションとサンプル投入は[DB手順](database.md)を参照する。状態変更API・取得先設定UI・収集・保持削除は後続Issue。認証方式・バックアップ方法は未選定なので、ここで具体的な認証クラスや保存先SDKを固定しない。
+Issue #6ではarticles・settingsと共通DB基盤を追加した。Issue #7で全記事・気になる一覧の取得APIを追加した。実際のテーブル、マイグレーションとサンプル投入は[DB手順](database.md)を参照する。Issue #8で状態変更・確認APIも追加した。取得先設定UI・収集・保持削除は後続Issue。認証方式・バックアップ方法は未選定なので、ここで具体的な認証クラスや保存先SDKを固定しない。
+
+Controller直下はHTTP入口だけとし、補助処理は役割別のサブフォルダに分ける。全体の共通登録場所と、各APIのPipe・Filter・Formatterは[HTTP処理の配置と適用範囲](http-structure.md)で確認できる。
 
 ## クラス図からコードへの対応
 

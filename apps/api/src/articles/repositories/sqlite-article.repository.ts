@@ -5,7 +5,7 @@ import { articles, articleStates, sources } from '../../infrastructure/database/
 import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
 import type { ArticleState } from '../models/article-state';
 import { ArticleRepository, type StoredArticle } from './article.repository';
-import { toArticle } from './article.mapper';
+import { toArticle, toArticleState } from './article.mapper';
 import type { ArticleListEntry, ArticlePageQuery } from '../models/article-page';
 
 @Injectable()
@@ -28,7 +28,7 @@ export class SqliteArticleRepository extends ArticleRepository {
         eq(articles.identityKind, identity.kind),
         eq(articles.identityValue, identity.value),
       )).get();
-    return row ? { article: toArticle(row.article), state: row.state } : undefined;
+    return row ? { article: toArticle(row.article), state: toArticleState(row.state) } : undefined;
   }
 
   // 渡された記事と初期状態を一括保存する。
@@ -49,7 +49,7 @@ export class SqliteArticleRepository extends ArticleRepository {
       }).returning().get();
       const state = this.database.db.insert(articleStates).values({ articleId: row.articleId })
         .returning().get();
-      return { article: toArticle(row), state };
+      return { article: toArticle(row), state: toArticleState(state) };
     });
   }
 
@@ -68,7 +68,7 @@ export class SqliteArticleRepository extends ArticleRepository {
     const row = this.database.db.select({ article: articles, state: articleStates })
       .from(articles).innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
       .where(eq(articles.articleId, articleId)).get();
-    return row ? { article: toArticle(row.article), state: row.state } : undefined;
+    return row ? { article: toArticle(row.article), state: toArticleState(row.state) } : undefined;
   }
 
   // 一覧条件と続き位置をSQLへ変換し、指定件数を取得する。
@@ -90,7 +90,7 @@ export class SqliteArticleRepository extends ArticleRepository {
       ))
       .orderBy(desc(articles.fetchedAt), desc(articles.articleId))
       .limit(query.limit).all();
-    return rows.map((row) => ({ article: toArticle(row.article), state: row.state, source: row.source }));
+    return rows.map((row) => ({ article: toArticle(row.article), state: toArticleState(row.state), source: row.source }));
   }
 
   // 指定された状態の項目を保存する。

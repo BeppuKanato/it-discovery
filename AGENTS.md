@@ -29,7 +29,12 @@
 ## 責務と説明の方針
 
 - 機能を最上位にまとめる。DB接続などの共通基盤はinfrastructureに置く。特定の機能のルールは、その機能が持つ。
-- 機能内はcontrollers・services・repositories・modelsで役割を表す。ControllerとHTTP用の補助処理はcontrollers、Repositoryの抽象と具体実装はrepositoriesにまとめる。必要なフォルダだけ作る。
+- 機能内はcontrollers・services・repositories・modelsで役割を表す。Nestのcontrollers直下はHTTP入口の*.controller.tsだけにする。補助処理はcontrollers/formatters・pipes・filters、テストはcontrollers/testsへ分ける。Repositoryの抽象と具体実装はrepositoriesにまとめる。必要なフォルダだけ作る。
+- FormatterはHTTP入出力の形式変換を行う。カーソルのエンコード・デコードなど双方で使う変換もformattersに置く。Serviceからは参照しない。
+- 機能固有のPipe・Filter・Interceptorは対象Controllerまたはメソッド・引数で適用を明示する。Moduleや隠れた登録経由で一部のControllerへ選択的に適用しない。
+- 全Controller共通のHTTP部品が必要になった場合だけinfrastructure/http配下へ置き、main.tsの一か所でグローバル登録する。登録と適用範囲を資料へ記載し、Controllerごとの隠れた除外や条件分岐を作らない。部品の種類は役割で選び、共通だからという理由だけでMiddlewareへ変えない。
+- このController配置の規約はNestのバックエンド向け。VueのComposableをHTTP Controllerと同じ規約へ合わせない。
+- PipeとServiceなどが共有する入力検証関数は、機能内のvalidatorsに置く。modelsは型・エラー・データの意味や状態の判定を定義する場所とし、今回のassertArticleId・操作入力の検証はvalidatorsへ分ける。検証を呼ぶ場所は変更せず、HTTP固有の表記検査と変換はPipeに置く。
 - Serviceが入力の共通条件・アプリの判断・処理手順を担当し、検索・保存はrepositories内のRepositoryの抽象へ頼む。
 - Repositoryの具体実装はDB操作とDB向けの形式変換を担当する。記事や設定の共通検証をDB実装ごとに重複させない。
 - 各Moduleは利用側へServiceを公開する。具体的なRepositoryの参照は、機能内の実装、組み立て部分、テストに留める。
