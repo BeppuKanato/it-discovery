@@ -125,9 +125,22 @@ export const useArticleStateStore = defineStore('article-state', () => {
   }
   function updateStatus(patch: Partial<StateSyncStatus>): void { Object.assign(status, patch); }
 
+  // 同期Serviceも直接代入せず、状態の遷移をこのStoreの操作として記録する。
+  function markPersisted(op: QueuedStateOperation): void { op.persisted = true; }
+  function markBlocked(op: QueuedStateOperation, message: string): void { op.blocked = true; status.notice = message; }
+  function recordRetry(op: QueuedStateOperation): number {
+    op.lookup = true;
+    return op.attempts++; // 今回の再試行番号を返し、次の番号へ進める。待ち時間はServiceが決める。
+  }
+  function prepareRetry(): void {
+    status.storageError = false; status.notice = '';
+    for (const op of operations.value) { op.blocked = false; if (op.persisted) op.lookup = true; }
+  }
+
   // Piniaは返したref/reactiveを追跡する。利用側は状態を読み、更新は上の操作を通す。
   return { entries, operations, version, status, pendingCount, blockedCount, canChange,
-    enqueue, accept, project, getArticle, supplements, settle, remove, updateReady, updateStatus };
+    enqueue, accept, project, getArticle, supplements, settle, remove, updateReady, updateStatus,
+    markPersisted, markBlocked, recordRetry, prepareRetry };
 });
 
 // ReturnTypeは「この関数の戻り値の型」。Storeと同じ型を手で二重定義しないために使う。

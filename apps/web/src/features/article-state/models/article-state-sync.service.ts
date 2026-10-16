@@ -17,7 +17,7 @@ export class ArticleStateSyncService {
 
   constructor(
     private readonly api: ArticleStateApi,
-    private readonly store: StateOperationStore,
+    private readonly operationStore: StateOperationStore,
     private readonly acquire: () => Promise<(() => void) | null>,
     readonly state: ArticleStateStore,
     private readonly makeId: () => string = () => crypto.randomUUID(),
@@ -27,11 +27,11 @@ export class ArticleStateSyncService {
   async start(): Promise<void> {
     if (this.starting || this.state.status.initialized || this.disposed) return;
     this.starting = true;
-    this.state.status.startupError = '';
+    this.state.updateStatus({ startupError: '' });
     try {
       this.release ??= await this.acquire();
       if (!this.release) throw new Error('別のタブで操作中です。そのタブを閉じてから再試行してください。');
-      const records = await this.store.load();
+      const records = await this.operationStore.load();
       if (this.disposed) { this.release?.(); this.release = null; return; }
       for (const record of records) {
         this.order = Math.max(this.order, record.order);
@@ -39,11 +39,11 @@ export class ArticleStateSyncService {
         // 再起動前の要求が処理済みかもしれないため、最初に操作IDの結果を照会する。
         this.state.enqueue(record, true, true);
       }
-      this.state.status.initialized = true;
+      this.state.updateStatus({ initialized: true });
       this.updateReady();
       this.pumpAll();
     } catch (error) {
-      this.state.status.startupError = error instanceof Error ? error.message : '端末の変更を読み込めませんでした。';
+      this.state.updateStatus({ startupError: error instanceof Error ? error.message : '端末の変更を読み込めませんでした。' });
     } finally { this.starting = false; }
   }
 
@@ -58,7 +58,7 @@ export class ArticleStateSyncService {
       request: { operationId: this.makeId(), change: { kind: field, value } },
     };
     const op = this.state.enqueue(record, false, false);
-    this.jobs.push({ run: () => this.store.put(copyOperation(record)), done: () => { op.persisted = true; } });
+    this.jobs.push({ run: () => this.operationStore.put(copyOperation(record)), done: () => this.state.markPersisted(op) });
 
     void this.drainStorage();
   }
@@ -77,8 +77,7 @@ export class ArticleStateSyncService {
         this.jobs.shift(); job.done(); this.pumpAll();
       }
     } catch {
-      this.state.status.storageError = true;
-      this.state.status.notice = '端末に変更を保存できませんでした。状態変更を停止しています。閉じると失われる変更があります。再試行してください。';
+      this.state.updateStatus({ storageError: true, notice: '端末に変更を保存できませんでした。状態変更を停止しています。閉じると失われる変更があります。再試行してください。' });
     } finally { this.writing = false; }
   }
 
@@ -104,13 +103,13 @@ export class ArticleStateSyncService {
     } catch (error) {
       if (this.disposed) return;
       if (error instanceof StateRequestError && error.kind === 'invalid') {
-        this.state.status.notice = error.message;
+        this.state.updateStatus({ notice: error.message });
         this.complete(op); // 入力拒否が確定した変更だけを除き、後続の希望状態は残す。
       } else if (error instanceof StateRequestError && error.kind === 'blocked') {
-        op.blocked = true; this.state.status.notice = error.message;
+        this.state.markBlocked(op, error.message);
       } else {
-        op.lookup = true;
-        const seconds = [1, 2, 4, 8, 16, 30][Math.min(op.attempts++, 5)]!;
+        const attempt = this.state.recordRetry(op);
+        const seconds = [1, 2, 4, 8, 16, 30][Math.min(attempt, 5)]!;
         if (this.state.status.online) this.timers.set(articleId, setTimeout(() => {
           this.timers.delete(articleId); void this.pump(articleId);
         }, seconds * 1000));
@@ -123,10 +122,10 @@ export class ArticleStateSyncService {
     if (op.settled) return;
     // Storeが状態を確定し、再起動時の基準を直した後続レコードを返す。
     for (const record of this.state.settle(op, result)) {
-      this.jobs.push({ run: () => this.store.put(copyOperation(record)), done: () => {} });
+      this.jobs.push({ run: () => this.operationStore.put(copyOperation(record)), done: () => {} });
     }
     // サーバーで成功しても端末削除が失敗することがある。削除完了まで後続を送らない。
-    this.jobs.push({ run: () => this.store.remove(op.record.request.operationId), done: () => {
+    this.jobs.push({ run: () => this.operationStore.remove(op.record.request.operationId), done: () => {
       this.state.remove(op.record.request.operationId);
       this.updateReady();
     } });
@@ -137,27 +136,24 @@ export class ArticleStateSyncService {
   // 手動再試行は、失敗した端末保存と要確認の操作を再開する。識別子・送信内容は維持する。
   retry(): void {
     if (!this.state.status.initialized) { void this.start(); return; }
-    this.state.status.storageError = false; this.state.status.notice = '';
-    for (const op of this.state.operations) { op.blocked = false; if (op.persisted) op.lookup = true; }
+    this.state.prepareRetry();
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
-    void this.drainStorage(); this.pumpAll(); 
+    void this.drainStorage(); this.pumpAll();
   }
 
   // 自動解消できない操作だけを、利用者の明示操作で破棄する。サーバーの状態を反転しない。
   discardBlocked(): void {
     for (const op of this.state.operations.filter((item) => item.blocked)) this.complete(op);
-    this.state.status.notice = '要確認の変更を端末から破棄しました。サーバーの状態は一覧の更新で確認してください。';
-
+    this.state.updateStatus({ notice: '要確認の変更を端末から破棄しました。サーバーの状態は一覧の更新で確認してください。' });
   }
 
   setOnline(value: boolean): void {
-    this.state.status.online = value;
+    this.state.updateStatus({ online: value });
     if (!value) {
       for (const timer of this.timers.values()) clearTimeout(timer);
       this.timers.clear();
     } else this.pumpAll();
-
   }
 
   dispose(): void {
