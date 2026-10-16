@@ -106,17 +106,18 @@ previewはローカルの表示確認用で、本番公開用サーバーでは�
 
 ## コードを読む順序
 
-フロントの図と全ファイルの関係は[MVVM＋Atomic Design](frontend-architecture.md)を参照する。
+[フロントの構成図と読む順序](frontend-architecture.md)を参照する。まずPage→VM→一覧Model→記事データStoreを読む。起動同期と再送の内部は、その後に分けて読む。
 
-1. apps/web/src/app/main.ts・create-services.ts：Piniaと通信・保存・同期を一度だけ組み立てる。
-2. apps/web/src/features/list/views/pages/ArticleListPage.vue：表示部品とViewModelを結ぶ。
-3. apps/web/src/features/list/view-models/useArticleListViewModel.ts：一覧固有の状態・表示用データ・操作を管理する。
-4. apps/web/src/features/article-state/models/article-state.store.ts：共通の記事状態と未確定操作を持つ。
-5. apps/web/src/features/article-state/models/article-state-sync.service.ts：端末への保存と非同期送信を進める。
-6. apps/web/src/infrastructure/api/api-client.ts・storage/：Axios通信とIndexedDBを実装する。
-7. packages/contracts/src/：フロントとAPIで共有する入出力の型を定義する。
+- app/main.ts・create-application-models.ts：PiniaとModel・通信・端末保存を組み立てる。
+- features/list/views/pages/ArticleListPage.vue：表示部品とVMを結ぶ。
+- features/list/view-models/useArticleListViewModel.ts：入力とModelを接続し、表示値を公開する。
+- features/list/models/article-list.model.ts：一覧取得・ページ管理・表示対象を扱う。
+- features/articles/models/article-data.store.ts：確定した記事データを持つ。
+- features/article-changes/models/：未完了操作・同期状況・端末保存と再送を扱う。
+- features/startup/models/application-startup.model.ts：同期解消後に初回一覧を取得する。
+- infrastructure/api・storage：AxiosとIndexedDBの具体実装を置く。
 
-設定はapps/web/vite.config.ts、apps/api/src/config/server.config.ts、APIの起動はapps/api/src/main.tsで確認できる。APIクライアントは共有型だけを信用せず、受け取ったJSONの最小形式も確認する。
+設定はapps/web/vite.config.ts、apps/api/src/config/server.config.ts、API起動はapps/api/src/main.tsで確認できる。
 
 ## UI部品とスタイル
 

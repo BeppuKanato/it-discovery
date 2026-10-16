@@ -8,18 +8,18 @@
 
 ## コードを読む順序
 
-構成の全体像は[MVVM＋Atomic Designの構成図](frontend-architecture.md)を参照する。依存関係・状態の持ち主・部品の組み合わせ・実行順序を分けて説明している。
+[MVVM＋Atomic Designの構成図と読む順序](frontend-architecture.md)で一覧・起動・ピン操作を別々に追える。
 
-1. [ArticleCard.vue](../apps/web/src/components/organisms/ArticleCard.vue)：表示とイベント通知を行う。
-2. [ArticleListContent.vue](../apps/web/src/features/list/views/organisms/ArticleListContent.vue)：カードのイベントに記事IDを添えてPageへ伝える。
-3. [ArticleListPage.vue](../apps/web/src/features/list/views/pages/ArticleListPage.vue)：ViewのイベントとViewModelの操作を結ぶ。
-4. [useArticleListViewModel.ts](../apps/web/src/features/list/view-models/useArticleListViewModel.ts)：一覧の取得・表示条件・操作窓口を持つ。
-5. [ArticleStateSyncService](../apps/web/src/features/article-state/models/article-state-sync.service.ts)：即時反映の依頼・端末保存・記事ごとの送信順・再送を進める。
-6. [article-state.store.ts](../apps/web/src/features/article-state/models/article-state.store.ts)：記事ID別の確定状態と未確定操作を一か所で持ち、表示する値を求める。
-7. [IndexedDB実装](../apps/web/src/infrastructure/storage/indexeddb-state-operation.store.ts)と[ApiClient](../apps/web/src/infrastructure/api/api-client.ts)：端末保存とAxios通信を実装する。
-8. [create-services.ts](../apps/web/src/app/create-services.ts)：共通Store・同期Service・通信・端末保存を組み立てる。
+1. [Page](../apps/web/src/features/list/views/pages/ArticleListPage.vue)がイベントをVMへ渡す。
+2. [VM](../apps/web/src/features/list/view-models/useArticleListViewModel.ts)はModelへ依頼し、表示値を公開する。API・Store・同期起動を扱わない。
+3. [一覧Model](../apps/web/src/features/list/models/article-list.model.ts)が一覧取得・補完・絞り込み・並べ替えを担当する。
+4. [記事データStore](../apps/web/src/features/articles/models/article-data.store.ts)が確定した記事と記事状態を持つ。
+5. [同期Model](../apps/web/src/features/article-changes/models/article-change-sync.model.ts)が変更値を決定し、端末保存・送信・再送を進める。
+6. [同期Store](../apps/web/src/features/article-changes/models/article-change.store.ts)が未完了操作と同期状況を持ち、確定記事へ希望値を重ねる。
+7. [起動Model](../apps/web/src/features/startup/models/application-startup.model.ts)が端末の未完了変更を解消してから初回一覧を開始する。
+8. [組み立て](../apps/web/src/app/create-application-models.ts)がAPI・Store・端末保存の実体をModelへ渡す。
 
-ViewModelはページの記事ID列を持つ。記事状態そのものはStoreに集め、computedが最新の表示用配列を求める。独自の通知カウンターは置かない。Storeのversionは遅い取得応答による上書きを防ぐ順序番号である。Vue・TypeScriptの構文と状態を持つ理由は使用箇所に日本語コメントを置いた。
+未完了の操作は送信失敗だけでなく、送信前・送信中・結果不明・再試行待ち・成功後の端末削除待ちも含む。記事の既読・ピン・気になると、同期状況のstartupSyncComplete・onlineは別Storeに分ける。端末のDB名・データ形式は変更しない。
 
 ## 失敗と再起動
 
@@ -39,12 +39,12 @@ ViewModelはページの記事ID列を持つ。記事状態そのものはStore�
 
 一つのタブがWeb Locksの所有権を持つ間、別タブはキューの読み書きと通常操作を待機する。別タブを閉じた後は「再試行」で取得できる。Web Locks未対応なら、二重送信し得る代替方式へ切り替えず、起動を止めて案内する。IndexedDBとロックの名前にはAPIの接続先を含める。
 
-仕分け・既読も含めた共通の起動処理や日次判定はIssue #16で統合する。今回の起動待機は実装済みの一覧変更のキューが対象。Pinia 4.1.0を追加し、共通の記事状態はStore、一覧固有の状態はViewModelに分けた。同期Serviceはアプリの間だけ動き、一覧画面を閉じても停止しない。
+仕分け・既読も含めた共通の起動処理や日次判定はIssue #16で統合する。今回の起動待機は実装済みの一覧変更のキューが対象。Pinia 4.1.0を追加し、確定した記事は記事データStore、一覧固有の状態は一覧Model、未完了変更と同期状況は同期Storeに分けた。VMはModelの窓口を使い、共有同期Modelは一覧画面を閉じても停止しない。
 
 ## 確認結果
 
 - 全体の型チェック・テスト・ビルドが成功。Markdownのローカルリンクとコードフェンスも確認した。
-- 前回の全体確認はweb61件・API193件、計254件。ジェスチャー分離後はweb67件とwebの型チェック・ビルドが成功した（API変更なし）。入力・応答形式、実IndexedDB相当の保存・再接続、即時反映、同一記事の直列化、他記事の独立、再送、復元基準、終了後の遅い応答、失敗したカードの復元を確認する。
+- 責務分離後のweb71件・API193件、計264件が成功。全体の型チェックとビルドも成功。入力・応答形式、実IndexedDB相当の保存・再接続、即時反映、同一記事の直列化、他記事の独立、再送、復元基準、終了後の遅い応答、失敗したカードの復元を確認する。
 - 端末保存のテストにはfake-indexeddbを使う。実ブラウザのIndexedDBでも再読み込みと復旧を確認した。
 - 390px幅のブラウザで、遅い通信での即時反映、ピンと気になるの保存、気になる一覧への反映、PUT拒否時の復元、503中の再読み込みと通常操作待機、復旧後の再開、別タブの待機を確認した。確認用の一時SQLiteと別ポートを使用した。
 - 実機iPhoneの操作は未確認。元記事を開く・既読保存は今回追加しない。

@@ -9,8 +9,8 @@ Issue #10で、全記事・気になる一覧をAPIに接続した。初回は20
 Issue #11で構成をMVVM＋Atomic Designへ整理した。現在のフォルダ・部品の依存関係・状態の持ち主は[フロントの構成図](frontend-architecture.md)を参照する。
 
 - features/list/viewsは表示とイベント通知を行う。
-- features/list/view-modelsは取得条件・続き位置・表示用データ・操作窓口を持つ。
-- features/article-state/modelsは共有記事状態と保存・送信の手順を持つ。
+- features/list/view-modelsは画面入力をModelへ接続し、Modelの表示値を公開する。
+- features/list/modelsは一覧取得と表示対象を扱い、features/articles/modelsは記事データ、features/article-changes/modelsは未完了操作と同期を扱う。
 - infrastructureはAxios・IndexedDBなどの具体的な外部接続を実装する。
 - PrimeVueをAtomsとして使い、Molecules・Organisms・Templates・Pagesは必要なものだけ作る。
 

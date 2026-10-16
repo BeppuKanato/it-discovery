@@ -49,9 +49,9 @@
 
 - MVVM＋Atomic Designを採用する。機能を先に分け、その中をviews・view-models・modelsで分ける。共通の通信・端末保存はinfrastructureへ置く。
 - Viewは描画・DOM・ブラウザイベントの受け渡しを担当する。タッチ情報は座標などの値に変換してViewModelへ渡す。ジェスチャーの状態・方向・距離・成立判定はmodelsの名前を付けた部品が持ち、ViewModelが操作の結果を処理へつなぐ。TouchEventやDOMをModelへ渡さない。Pageが子のemitとViewModelの操作を結び、子に業務処理を持たせない。
-- ViewModelはページ固有の状態・computedによる表示用データ・操作窓口を持つ。共通の記事状態はPinia Storeへ集め、同じ記事状態をページごとに重複保持しない。
-- ModelはStoreと同期Serviceなどを含む。Storeは値と状態遷移、同期Serviceは端末保存・送信・再送の手順を担当する。Viewを参照しない。
-- 共有同期Serviceはappで一度組み立てる。Pageの終了で共通の送信処理を止めず、アプリ終了時に解放する。
+- ViewModelは画面操作をModelへ接続し、表示値を公開する。一覧取得・ページ管理・表示対象の補完・絞り込み・並べ替えは一覧Modelへ置く。VMからAPIやStoreを直接参照しない。起動時の端末同期と初回一覧取得の順序は起動Modelが持つ。
+- Modelは一覧取得や同期の手順、Store、操作判定などを含む。確定した記事データと未完了変更・同期状況は別Storeにし、同じ記事データをVMへ二重保存しない。ModelからViewを参照しない。
+- 共有同期Modelはapp/create-application-models.tsで一度組み立てる。Pageの終了で共通の送信処理を止めず、アプリ終了時に解放する。
 - PrimeVueの基本部品をAtomsとして使う。名前を合わせるだけのラッパーや空フォルダは作らない。Moleculeは小さなUI機能、Organismは画面内のまとまり、Templateは配置、PageはViewModelとの接続を担当する。
 - 辞書は用途に応じてMap・Recordを使う。動的キーや一部だけ存在するキーはMap、固定キーで同じ値型の必須項目はRecordを基本にする。項目ごとに型が違うデータはinterfaceなどで表す。省略可能な辞書をPartial<Record<...>>で表す構造を増やさない。
 - 構成変更時は[フロントの構成図](docs/frontend-architecture.md)を更新する。依存関係・部品構成・実行順序は別図にし、StoreとViewModelの状態の持ち主を明示する。

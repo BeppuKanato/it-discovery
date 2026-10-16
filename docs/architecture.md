@@ -48,7 +48,7 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 
 better-sqlite3のDB処理は同期であり、Promiseに包むだけでは処理中の待ち時間は消えない。個人利用・短いDB処理を前提に選び、外部取得はトランザクションの外で行う。件数削除などの長い処理が問題になった場合に分離を検討する。ネイティブモジュールの互換性はDockerのLinux環境でも確認し、ホストのnode_modulesをイメージへ持ち込まない。
 
-Axiosの共通インスタンスはApiClient内で生成し、画面側には記事取得・状態変更など目的別の関数を公開する。共通処理は通信設定とエラー整理に留め、登録順・再試行・未送信同期は一覧のArticleStateSyncServiceが管理する。仕分けのInterestResultSyncは後続Issueで実装する。Interceptorへ業務処理を集めない。
+Axiosの共通インスタンスはApiClient内で生成し、画面側には記事取得・状態変更など目的別の関数を公開する。共通処理は通信設定とエラー整理に留め、登録順・再試行・未送信同期は一覧のArticleChangeSyncModelが管理する。仕分けのInterestResultSyncは後続Issueで実装する。Interceptorへ業務処理を集めない。
 
 Drizzle ORMはテーブル定義と検索・更新をTypeScriptで表す層、better-sqlite3はそのSQLをSQLiteで実行するドライバーである。アプリのDB処理はRepositoryからDrizzleを呼び、Drizzleがbetter-sqlite3を使ってDBファイルへ読み書きする。IndexedDBはブラウザ内の保存先、idbはそのAPIをPromiseで扱えるようにする小さなライブラリである。
 
@@ -68,30 +68,29 @@ Issue #7では[記事一覧API](article-list-api.md)を追加した。HTTPの形
 apps/
   web/
     src/
-      app/                         # mainと共通サービスの組み立て
-      components/                  # 機能をまたぐView部品
+      app/                         # 初期化・Modelの組み立て・起動の入口
+      components/
         molecules/SourceBadge.vue
         organisms/ArticleCard.vue
       features/
         list/
-          views/
-            pages/ArticleListPage.vue
-            templates/ArticleListLayout.vue
-            organisms/             # Toolbar・Content・SyncStatus
+          views/pages・templates・organisms/
           view-models/useArticleListViewModel.ts
           models/
+            article-list.model.ts  # 取得・続き位置・表示対象
             article-list-api.ts
             pull-to-refresh-gesture.ts
-        article-state/
-          models/
-            article-state.store.ts # Piniaで共通状態を持つ
-            article-state-sync.service.ts # 保存と再送の手順
-            state-sync.ts          # 通信・保存・操作の約束
+        articles/models/article-data.store.ts
+        article-changes/models/
+          article-change-sync.model.ts
+          article-change.store.ts
+          article-change-contracts.ts
+        startup/models/application-startup.model.ts
         connection/                # 初期の接続確認サンプル
       infrastructure/
         api/api-client.ts
-        storage/indexeddb-state-operation.store.ts
-        state-sync-owner.ts        # タブ間の所有権
+        storage/indexeddb-article-change.storage.ts
+        article-change-ownership.ts
   api/
     src/
       main.ts
@@ -178,7 +177,7 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 
 ## クラス図からコードへの対応
 
-旧クラス図のフロントのControllerは「画面操作を進める役割」の呼称。現在はMVVMのViewModelに対応させ、VueのComposableとして実装する。NestのHTTP Controllerと同名・同責任にしない。
+旧クラス図の旧設計図のフロントControllerは「画面操作を進める役割」の呼称。現在はMVVMのViewModelに対応させ、VueのComposableとして実装する。NestのHTTP Controllerと同名・同責任にしない。
 
 | クラス図の責任 | 実装予定の場所 | 担当すること |
 |---|---|---|
@@ -191,7 +190,7 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 | ListController | web/src/features/list/view-models/useArticleListViewModel.ts | 一覧取得・更新・追加と操作の進行を担当する |
 | SortingController | web/src/features/sorting/useSorting.ts | 対象取得・手元の判断・保存依頼を進める |
 | SortingSession・SortingDecision | web/src/features/sorting/sorting-session.ts | その回のカード・判断履歴・取り消しを扱う |
-| MutationCoordinator | web/src/features/article-state/models/article-state-sync.service.ts | 一覧の保存順と確定・不明結果を管理する |
+| MutationCoordinator | web/src/features/article-changes/models/article-change-sync.model.ts | 一覧の保存順と確定・不明結果を管理する |
 | ArticleOpeningService | web/src/services/article-opening.service.ts | 外部を開き、既読の保存を依頼する |
 | InterestResultSync | web/src/services/interest-result-sync.ts | 途中保存・終了送信・起動時再送を担当する |
 | PendingInterestStore | webの保存契約、IndexedDB実装 | 未送信結果を読み書きする |
@@ -207,9 +206,9 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 | ArticleNormalizer | api/src/collection/article-normalizer.ts | 外部データを共通形式へ変換する。識別条件はArticleServiceが作る |
 | RetentionService | api/src/retention/retention.service.ts | 保護・期限・件数から保持を判断する |
 
-Issue #11ではMVVM＋Atomic Designを採用した。[フロントの構成図](frontend-architecture.md)に実際の配置と依存関係を記載する。Viewは表示と通知、ViewModelは一覧固有の状態と操作窓口、Modelは共有記事状態と保存・送信の手順を担当する。
+Issue #11ではMVVM＋Atomic Designを採用した。[フロントの構成図](frontend-architecture.md)に実際の配置と依存関係を記載する。Viewは表示と入力通知、VMは画面とModelの接続、一覧Modelは取得と表示対象の決定、起動Modelは端末同期と初回取得の順序を担当する。
 
-記事の確定状態と未確定操作はPinia Storeに集める。ViewModelは記事ID列・カーソル・取得世代を持ち、computedがStoreから表示用の記事を求める。同期Serviceはアプリ全体で共有し、Pageを閉じても未送信処理を続ける。仕分けと起動時統合は後続Issueの方針である。
+確定した記事データと、未完了操作・同期状況を別のPinia Storeへ分ける。一覧Modelが記事ID列・カーソル・取得世代を持ち、computedで表示対象を求める。VMはAPIやStoreを直接参照しない。共有同期ModelはPageを閉じても処理を続ける。仕分け・既読を含む起動統合は後続Issueで追加する。
 
 SortingSessionはVue・Axios・IndexedDBに依存しない純粋な処理にする。useSortingが操作後の表示用状態をref等へ反映する。Piniaに同じ履歴を重複して保存したり、SortingSessionを次回起動で復元したりしない。
 
@@ -227,8 +226,8 @@ HTTPでは日時をISO形式の文字列、集合を配列に変換する。ブ�
 
 | 操作 | コードを辿る順序 |
 |---|---|
-| 一覧を見る | ArticleListPage → useArticleListViewModel → ApiClient → ArticlesController → ArticleService → SQLiteArticleRepository |
-| 一覧で気になるを変える | ArticleListPage → useArticleListViewModel → ArticleStateSyncService → Storeで表示を更新・端末保存 → ApiClient → HTTP入口 → ArticleService → Repository |
+| 一覧を見る | ArticleListPage → useArticleListViewModel → 記事一覧Model → ApiClient → ArticlesController → ArticleService → SQLiteArticleRepository |
+| 一覧で気になるを変える | ArticleListPage → useArticleListViewModel → ArticleChangeSyncModel → 同期Storeへ希望値・端末保存 → ApiClient → HTTP入口 → ArticleService → Repository |
 | スワイプ・戻す | SortingPage → useSorting → SortingSession → InterestResultSyncの端末保存。毎回のサーバー要求はない |
 | 仕分けを終了する | useSorting → 最終端末保存の確認 → InterestResultSync → ApiClient → ArticleServiceの一括登録 |
 | 起動する | useStartup → InterestResultSync → 未送信結果の確認・送信 → 成功後に通常操作 |
