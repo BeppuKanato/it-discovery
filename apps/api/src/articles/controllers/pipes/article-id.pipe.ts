@@ -1,5 +1,6 @@
 import { type PipeTransform } from '@nestjs/common';
-import { assertArticleId, StateOperationError } from '../../models/article-state-operation';
+import { StateOperationError } from '../../models/article-state-operation';
+import { assertArticleId } from '../../validators/article-id.validator';
 
 // URLの文字列を整数へ変換する。Numberへの変換だけでは許される01や1e2なども入口で拒否する。
 export class ArticleIdPipe implements PipeTransform<string, number> {

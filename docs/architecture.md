@@ -119,6 +119,9 @@ apps/
           article.repository.ts    # Repositoryの約束・DIトークン
           sqlite-article.repository.ts
           article.mapper.ts        # DBの行を共通形式へ変換
+        validators/
+          article-id.validator.ts   # PipeとServiceで共有するID検証
+          article-state-operation.validator.ts
         models/
           article.ts
           article-state.ts

@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ArticleState } from '../models/article-state';
 import {
-  assertArticleId, normalizeOperationId, parseStateOperation, StateOperationError,
+  StateOperationError,
   type StateOperationResult,
 } from '../models/article-state-operation';
+import { assertArticleId } from '../validators/article-id.validator';
+import { normalizeOperationId, parseStateOperation } from '../validators/article-state-operation.validator';
 import { ArticleRepository } from '../repositories/article.repository';
 import { ArticleStateOperationRepository } from '../repositories/article-state-operation.repository';
 

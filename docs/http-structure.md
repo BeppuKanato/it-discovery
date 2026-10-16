@@ -37,7 +37,7 @@ apps/api/src/
 1. 共通設定は[main.ts](../apps/api/src/main.ts)を見る。
 2. 対象Controllerの`@UseFilters`、各メソッド・引数のPipe指定を見る。
 3. 応答を変換する関数の呼び出しを見る。
-4. アプリ共通の入力条件や判断は、呼び出し先Serviceで確認する。Serviceが呼ぶモデルの検証関数は、Nestが自動適用するグローバル検証ではない。
+4. アプリ共通の入力条件や判断は、呼び出し先Serviceで確認する。Serviceが呼ぶvalidatorsの検証関数は、Nestが自動適用するグローバル検証ではない。
 
 現在、独自のグローバルPipe・Filter・Interceptor・Middlewareは登録していない。共通HTTP設定はAPIプレフィックスと、設定に応じた全体のCORS許可。Nest標準のJSON本文解析や標準例外処理は使っている。特定Controllerだけに隠れて適用する共通部品はない。
 
@@ -62,7 +62,10 @@ flowchart TD
   C --> E[controllers/filters HTTPエラー変換]
   C --> S[Service 共通入力条件と手順]
   P --> F
-  S --> M[models データの定義と条件]
+  S --> V[validators 共通入力検証]
+  P --> V
+  V --> M[models データとエラーの定義]
+  S --> M
   S --> R[repositories 保存の約束]
 ```
 

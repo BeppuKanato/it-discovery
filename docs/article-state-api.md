@@ -75,7 +75,9 @@ flowchart TD
   Module --> Concrete[SQLiteのRepository実装]
   Controller --> Service
   Controller --> HTTP[Pipe・Filter・応答変換]
-  Service --> Model[入力検証・操作結果モデル]
+  Service --> Validator[validators 共通入力検証]
+  Service --> Model[models 操作結果とエラー]
+  Validator --> Model
   Service --> Articles[ArticleRepository 記事の保存の約束]
   Service --> Operations[ArticleStateOperationRepository 操作記録の約束]
   Concrete -. 実装 .-> Articles
@@ -84,11 +86,11 @@ flowchart TD
 ```
 
 - ControllerはHTTPの入口と応答変換を担当する。PipeはURLの記事IDを数値へ変換し、Filterはアプリの入力エラーだけを400・409へ変換する。
-- Serviceは共通検証を呼び、再送判定・変更項目・最大既読日時・保存手順を決める。HTTPやSQLiteのAPIは知らない。
+- Serviceはvalidatorsの共通検証を呼び、再送判定・変更項目・最大既読日時・保存手順を決める。HTTPやSQLiteのAPIは知らない。
 - Repositoryは検索・保存・DB形式への変換を行う。抽象とSQLite実装を同じ`repositories`に置く。
 - ModuleはServiceを公開し、Repositoryの具体実装を組み合わせる。二つのRepositoryに同じDatabaseServiceを渡すことが、保存単位の前提となる。
 
-読む順序は[Service](../apps/api/src/articles/services/article-state.service.ts) → [入力モデル](../apps/api/src/articles/models/article-state-operation.ts) → [Controller](../apps/api/src/articles/controllers/article-state.controller.ts) → [操作記録のRepository](../apps/api/src/articles/repositories/sqlite-article-state-operation.repository.ts)。構文と処理の理由は各ファイルの日本語コメントにも記載した。
+読む順序は[Service](../apps/api/src/articles/services/article-state.service.ts) → [ID検証](../apps/api/src/articles/validators/article-id.validator.ts)・[操作入力の検証](../apps/api/src/articles/validators/article-state-operation.validator.ts) → [型とエラー](../apps/api/src/articles/models/article-state-operation.ts) → [Controller](../apps/api/src/articles/controllers/article-state.controller.ts) → [操作記録のRepository](../apps/api/src/articles/repositories/sqlite-article-state-operation.repository.ts)。構文と処理の理由は各ファイルの日本語コメントにも記載した。
 
 ## 実行順序と保存単位
 
