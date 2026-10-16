@@ -1,6 +1,7 @@
+import { useArticleDataStore } from '../../articles/models/article-data.store';
 import { createPinia } from 'pinia';
 import { nextTick } from 'vue';
-import { useArticleStateStore } from '../../article-state/models/article-state.store';
+import { useArticleChangeStore } from '../../article-changes/models/article-change.store';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArticlePageResponse } from '@it-discovery/contracts';
 import type { ArticleListApi } from '../models/article-list-api';
@@ -153,26 +154,26 @@ describe('記事一覧の取得と競合', () => {
   });
 
   it('起動時の未送信が解消してから初回取得し、通常保存では取り直さない', async () => {
-    const state = useArticleStateStore(createPinia());
+    const state = useArticleChangeStore(createPinia());
     const getArticlePage = vi.fn().mockResolvedValue(page([1]));
-    const list = useArticleListViewModel({ getArticlePage }, state, {
-      start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn(),
+    const list = useArticleListViewModel({ getArticlePage }, state, useArticleDataStore(createPinia()), {
+      restoreAndSyncUnfinishedChanges: async () => {}, setArticleState: vi.fn(), retryUnfinishedChanges: vi.fn(), discardBlockedChanges: vi.fn(),
     });
     await list.initialize(); expect(getArticlePage).not.toHaveBeenCalled();
-    state.updateStatus({ ready: true }); await nextTick();
+    state.updateSyncStatus({ startupSyncComplete: true }); await nextTick();
     expect(getArticlePage).toHaveBeenCalledTimes(1);
-    state.updateStatus({ notice: '保存完了' }); await nextTick();
+    state.updateSyncStatus({ notice: '保存完了' }); await nextTick();
     expect(getArticlePage).toHaveBeenCalledTimes(1);
     list.dispose();
   });
 
   it('起動同期を待っている間に画面を閉じた場合は後から取得しない', async () => {
-    const state = useArticleStateStore(createPinia()); const getArticlePage = vi.fn();
-    const list = useArticleListViewModel({ getArticlePage }, state, {
-      start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn(),
+    const state = useArticleChangeStore(createPinia()); const getArticlePage = vi.fn();
+    const list = useArticleListViewModel({ getArticlePage }, state, useArticleDataStore(createPinia()), {
+      restoreAndSyncUnfinishedChanges: async () => {}, setArticleState: vi.fn(), retryUnfinishedChanges: vi.fn(), discardBlockedChanges: vi.fn(),
     });
     await list.initialize(); list.dispose();
-    state.updateStatus({ ready: true }); await nextTick();
+    state.updateSyncStatus({ startupSyncComplete: true }); await nextTick();
     expect(getArticlePage).not.toHaveBeenCalled();
   });
   it('座標をModelへ渡し、成立時だけ更新して表示用の距離を戻す', async () => {
@@ -212,10 +213,10 @@ describe('記事一覧の取得と競合', () => {
     expect(list.pullDistance.value).toBe(0);
     await list.finishPull();
     expect(getArticlePage).toHaveBeenCalledTimes(1);
-    const state = useArticleStateStore(createPinia());
+    const state = useArticleChangeStore(createPinia());
     const waitingApi = { getArticlePage: vi.fn() };
-    const waiting = useArticleListViewModel(waitingApi, state, {
-      start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn(),
+    const waiting = useArticleListViewModel(waitingApi, state, useArticleDataStore(createPinia()), {
+      restoreAndSyncUnfinishedChanges: async () => {}, setArticleState: vi.fn(), retryUnfinishedChanges: vi.fn(), discardBlockedChanges: vi.fn(),
     });
     waiting.beginPull(touch); waiting.movePull({ ...touch, y: 200 }); await waiting.finishPull();
     expect(waitingApi.getArticlePage).not.toHaveBeenCalled();
@@ -236,7 +237,7 @@ describe('記事一覧の取得と競合', () => {
 });
 
 function createList(api: ArticleListApi) {
-  const state = useArticleStateStore(createPinia());
-  state.updateStatus({ ready: true, initialized: true });
-  return useArticleListViewModel(api, state, { start: async () => {}, setState: vi.fn(), retry: vi.fn(), discardBlocked: vi.fn() });
+  const state = useArticleChangeStore(createPinia());
+  state.updateSyncStatus({ startupSyncComplete: true, storageRestored: true });
+  return useArticleListViewModel(api, state, useArticleDataStore(createPinia()), { restoreAndSyncUnfinishedChanges: async () => {}, setArticleState: vi.fn(), retryUnfinishedChanges: vi.fn(), discardBlockedChanges: vi.fn() });
 }

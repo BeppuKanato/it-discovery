@@ -10,7 +10,7 @@ import ArticleSyncStatus from '../organisms/ArticleSyncStatus.vue';
 
 // Page：ViewModelと表示部品の接続場所。Store・同期サービスの内部を直接変更しない。
 const props = defineProps<{ services: ArticleListServices }>();
-const vm = useArticleListViewModel(props.services.api, props.services.articleState, props.services.sync);
+const vm = useArticleListViewModel(props.services.api, props.services.articleState, props.services.articleData, props.services.sync);
 const { kind, articles, hasMore, loading, error, syncStatus, refresh, loadMore, retry,
   togglePin, toggleInterest, retrySync, discardBlocked,
   pullDistance, pullReady, finishPull, cancelPull } = vm;

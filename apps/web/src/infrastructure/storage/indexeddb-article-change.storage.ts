@@ -1,14 +1,14 @@
 import { openDB, type DBSchema } from 'idb';
 import { isArticlePageResponse } from '../api/article-page-response';
-import type { PendingStateOperation, StateOperationStore } from '../../features/article-state/models/state-sync';
+import type { UnfinishedArticleChange, UnfinishedArticleChangeStorage } from '../../features/article-changes/models/article-change-contracts';
 
 interface StateDatabase extends DBSchema {
-  operations: { key: string; value: PendingStateOperation };
+  operations: { key: string; value: UnfinishedArticleChange };
 }
 
 // サーバーへ送る前の変更を、ブラウザ内のIndexedDBへ保存する。
 // 接続先ごとに別DBとし、開発用APIの未送信変更を別のAPIへ誤送信しない。
-export class IndexedDbStateOperationStore implements StateOperationStore {
+export class IndexedDbUnfinishedArticleChangeStorage implements UnfinishedArticleChangeStorage {
   constructor(private readonly name: string) {}
 
   private open() {
@@ -19,7 +19,7 @@ export class IndexedDbStateOperationStore implements StateOperationStore {
     });
   }
 
-  async load(): Promise<PendingStateOperation[]> {
+  async load(): Promise<UnfinishedArticleChange[]> {
     const db = await this.open();
     try {
       const operations = await db.getAll('operations');
@@ -38,7 +38,7 @@ export class IndexedDbStateOperationStore implements StateOperationStore {
     } finally { db.close(); }
   }
 
-  async put(operation: PendingStateOperation): Promise<void> {
+  async put(operation: UnfinishedArticleChange): Promise<void> {
     const db = await this.open();
     try {
       // idbのputは書き込みトランザクションの完了まで待つ。完了後だけ送信を許可する。

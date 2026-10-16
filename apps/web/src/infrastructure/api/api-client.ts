@@ -3,16 +3,16 @@ import type { AxiosInstance } from 'axios';
 import type { ArticlePageRequest, ArticlePageResponse, HealthResponse, ArticleStateMutationRequest, ArticleStateOperationResponse } from '@it-discovery/contracts';
 import { isArticlePageResponse } from './article-page-response';
 import { isArticleStateOperationResponse } from './article-state-response';
-import { StateRequestError } from '../../features/article-state/models/state-sync';
+import { ArticleChangeRequestError } from '../../features/article-changes/models/article-change-contracts';
 
 // 通信エラーや500は保存済みの可能性がある。400だけを入力拒否、認証・競合は要確認とする。
-function stateRequestError(error: unknown): StateRequestError {
+function stateRequestError(error: unknown): ArticleChangeRequestError {
   const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-  if (status === 400) return new StateRequestError('invalid', '変更が受け付けられなかったため、その変更を戻しました。');
+  if (status === 400) return new ArticleChangeRequestError('invalid', '変更が受け付けられなかったため、その変更を戻しました。');
   if (status !== undefined && status >= 400 && status < 500 && ![408, 425, 429].includes(status)) {
-    return new StateRequestError('blocked', '本人確認・操作内容を確認して再試行してください。未送信変更は残しています。');
+    return new ArticleChangeRequestError('blocked', '本人確認・操作内容を確認して再試行してください。未送信変更は残しています。');
   }
-  return new StateRequestError('temporary', '保存結果を確認しています。通信の復旧後に再試行します。');
+  return new ArticleChangeRequestError('temporary', '保存結果を確認しています。通信の復旧後に再試行します。');
 }
 
 export class ApiClient {
@@ -53,7 +53,7 @@ export class ApiClient {
       if (axios.isAxiosError(error) && error.response?.status === 404) return undefined;
       const failure = stateRequestError(error);
       // 照会の400は元のPUTの失敗を証明しない。変更を戻さず、要確認として残す。
-      throw failure.kind === 'invalid' ? new StateRequestError('blocked', '保存結果を照会できません。変更を残して再確認してください。') : failure;
+      throw failure.kind === 'invalid' ? new ArticleChangeRequestError('blocked', '保存結果を照会できません。変更を残して再確認してください。') : failure;
     }
   }
 

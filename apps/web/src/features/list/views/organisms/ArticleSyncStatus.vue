@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import Button from 'primevue/button';
 import Message from 'primevue/message';
-import type { StateSyncSnapshot } from '../../../article-state/models/state-sync';
+import type { ArticleSyncDisplay } from '../../../article-changes/models/article-change-contracts';
 
 // Organism：状態を文言と再試行ボタンで表現する。通信やStoreの操作は行わない。
-defineProps<{ status: StateSyncSnapshot }>();
+defineProps<{ status: ArticleSyncDisplay }>();
 const emit = defineEmits<{ retry: []; discard: [] }>();
 </script>
 

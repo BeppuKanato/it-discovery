@@ -1,10 +1,11 @@
-import { useArticleStateStore } from '../../article-state/models/article-state.store';
+import { useArticleDataStore } from '../../articles/models/article-data.store';
+import { useArticleChangeStore } from '../../article-changes/models/article-change.store';
 import { createPinia } from 'pinia';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArticlePageResponse, ArticleStateMutationRequest, ArticleStateOperationResponse } from '@it-discovery/contracts';
 import { article, page } from '../../../test/article-fixture';
-import { ArticleStateSyncService } from '../../article-state/models/article-state-sync.service';
-import { StateRequestError } from '../../article-state/models/state-sync';
+import { ArticleChangeSyncModel } from '../../article-changes/models/article-change-sync.model';
+import { ArticleChangeRequestError } from '../../article-changes/models/article-change-contracts';
 import { useArticleListViewModel } from './useArticleListViewModel';
 
 function deferred<T>() {
@@ -29,9 +30,10 @@ describe('一覧取得と未確定変更の合成', () => {
       })),
       getArticleStateOperation: vi.fn().mockResolvedValue(undefined),
     };
-    const sync = new ArticleStateSyncService(api, { load: async () => [], put: async () => {}, remove: async () => {} }, async () => () => {}, useArticleStateStore(createPinia()));
-    await sync.start();
-    const list = useArticleListViewModel(api, sync.state, sync);
+    const pinia = createPinia();
+    const sync = new ArticleChangeSyncModel(api, { load: async () => [], put: async () => {}, remove: async () => {} }, async () => () => {}, useArticleChangeStore(pinia), useArticleDataStore(pinia));
+    await sync.restoreAndSyncUnfinishedChanges();
+    const list = useArticleListViewModel(api, sync.changes, sync.articles, sync);
     await list.changeKind('interested');
     return { sync, list, api };
   }
@@ -42,7 +44,7 @@ describe('一覧取得と未確定変更の合成', () => {
     list.toggleInterest(list.articles.value[1]!.articleId); await flush();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 1]);
     list.togglePin(list.articles.value[0]!.articleId); await flush();
-    pending.reject(new StateRequestError('invalid', '拒否')); await flush();
+    pending.reject(new ArticleChangeRequestError('invalid', '拒否')); await flush();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
     expect(list.articles.value[0]!.state.pinned).toBe(true);
     sync.dispose(); list.dispose();
@@ -53,7 +55,7 @@ describe('一覧取得と未確定変更の合成', () => {
     const pending = deferred<ArticleStateOperationResponse>(); api.applyArticleState.mockReturnValueOnce(pending.promise);
     list.toggleInterest(list.articles.value[1]!.articleId); await flush();
     api.getArticlePage.mockResolvedValueOnce(interestedPage([3, 1])); await list.refresh();
-    pending.reject(new StateRequestError('invalid', '拒否')); await flush();
+    pending.reject(new ArticleChangeRequestError('invalid', '拒否')); await flush();
     expect(list.articles.value.map((item) => item.articleId)).toEqual([3, 2, 1]);
     sync.dispose(); list.dispose();
   });
@@ -81,7 +83,7 @@ describe('一覧取得と未確定変更の合成', () => {
 
   it('二つのViewModelは選択タブを共有せず、記事のピン状態だけ共有する', async () => {
     const { sync, list, api } = await setup();
-    const other = useArticleListViewModel(api, sync.state, sync);
+    const other = useArticleListViewModel(api, sync.changes, sync.articles, sync);
     await other.refresh();
     expect(list.kind.value).toBe('interested'); expect(other.kind.value).toBe('all');
     list.togglePin(3); await flush();
@@ -96,10 +98,10 @@ describe('一覧取得と未確定変更の合成', () => {
     list.togglePin(3); await flush();
     const call = api.applyArticleState.mock.calls[0]!;
     list.dispose();
-    expect(sync.state.status.stopped).toBe(false);
+    expect(sync.changes.syncStatus.stopped).toBe(false);
     pending.resolve({ operationId: call[1].operationId, articleId: 3, status: 'saved', state: { ...article(3).state, pinned: true } });
     await flush();
-    expect(sync.state.pendingCount).toBe(0); expect(sync.state.getArticle(3)?.state.pinned).toBe(true);
+    expect(sync.changes.unfinishedCount).toBe(0); expect(sync.readArticle(3)?.state.pinned).toBe(true);
     sync.dispose();
   });
 });

@@ -1,8 +1,9 @@
+import type { ArticleDataStore } from '../../articles/models/article-data.store';
 import { computed, reactive, readonly, ref, shallowRef, watch, type WatchStopHandle } from 'vue';
 import type { ArticleListItem, ArticleListKind } from '@it-discovery/contracts';
 import type { ArticleListApi } from '../models/article-list-api';
-import type { ArticleStateStore } from '../../article-state/models/article-state.store';
-import type { ArticleStateActions, StateField } from '../../article-state/models/state-sync';
+import type { ArticleChangeStore } from '../../article-changes/models/article-change.store';
+import type { ArticleChangeActions, StateField } from '../../article-changes/models/article-change-contracts';
 
 import { PullToRefreshGesture, type PullGestureInput } from '../models/pull-to-refresh-gesture';
 
@@ -11,7 +12,7 @@ interface ListLoadError { mode: LoadMode; message: string }
 
 // ViewModel：一覧画面の状態・表示用の計算・操作をまとめる。
 // DOM、PrimeVue、Axios、IndexedDBは参照しない。Viewはこの戻り値だけで画面を組み立てる。
-export function useArticleListViewModel(api: ArticleListApi, articleState: ArticleStateStore, sync: ArticleStateActions) {
+export function useArticleListViewModel(api: ArticleListApi, articleState: ArticleChangeStore, articleData: ArticleDataStore, sync: ArticleChangeActions) {
   const kind = ref<ArticleListKind>('all');
   // 一覧が保持するのは記事IDと続き位置。記事内容と確定状態の管理元は共有Storeに一本化する。
   const articleIds = shallowRef<number[]>([]);
@@ -32,7 +33,7 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
   const pullReady = computed(() => pullGesture.ready);
   // disposedはVueの状態ではないため、キャッシュせず操作のたびに現在値を確認する。
   function canPullToRefresh(): boolean {
-    return !disposed && articleState.status.ready && loading.value !== 'initial' && loading.value !== 'refresh';
+    return !disposed && articleState.syncStatus.startupSyncComplete && loading.value !== 'initial' && loading.value !== 'refresh';
   }
 
   // Viewから渡された値をModelへ送り、成立した操作を一覧更新へつなぐ。
@@ -49,27 +50,27 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
   const articles = computed(() => {
     const ids = new Set(articleIds.value);
     if (kind.value === 'interested') {
-      for (const article of articleState.supplements()) ids.add(article.articleId);
+      for (const id of articleData.getLocallyChangedInterestIds()) ids.add(id);
     }
-    return [...ids].map((id) => articleState.getArticle(id))
+    return [...ids].map((id) => articleState.applyUnfinishedChanges(articleData.getConfirmedArticle(id)))
       .filter((article): article is ArticleListItem => article !== null && (kind.value === 'all' || article.state.interested))
       .sort((a, b) => Date.parse(b.fetchedAt) - Date.parse(a.fetchedAt) || b.articleId - a.articleId);
   });
   // Viewへは必要な値だけを渡し、Storeそのものや同期クラスを公開しない。
   const syncStatus = computed(() => ({
-    ready: articleState.status.ready, canChange: articleState.canChange,
-    pendingCount: articleState.pendingCount, blockedCount: articleState.blockedCount,
-    notice: articleState.status.notice, storageError: articleState.status.storageError,
-    startupError: articleState.status.startupError, online: articleState.status.online,
+    ready: articleState.syncStatus.startupSyncComplete, canChange: articleState.canChangeArticles,
+    pendingCount: articleState.unfinishedCount, blockedCount: articleState.blockedCount,
+    notice: articleState.syncStatus.notice, storageError: articleState.syncStatus.storageError,
+    startupError: articleState.syncStatus.startupError, online: articleState.syncStatus.online,
   }));
-  const canLoadMore = computed(() => articleState.status.ready && hasMore.value && nextCursor.value !== null && loading.value === null && error.value === null);
+  const canLoadMore = computed(() => articleState.syncStatus.startupSyncComplete && hasMore.value && nextCursor.value !== null && loading.value === null && error.value === null);
 
   // 世代番号は一覧要求の新旧、Storeのversionは記事変更の新旧を判定する別の番号。
   async function request(mode: LoadMode): Promise<void> {
-    if (disposed || !articleState.status.ready) return;
+    if (disposed || !articleState.syncStatus.startupSyncComplete) return;
     if (mode === 'append' && (loading.value !== null || !hasMore.value || !nextCursor.value)) return;
     const requestGeneration = ++generation;
-    const readVersion = articleState.version;
+    const readVersion = articleData.changeVersion;
     activeRequest?.abort();
     const controller = new AbortController();
     activeRequest = controller;
@@ -79,7 +80,7 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
       const page = await api.getArticlePage({ kind: kind.value, limit: 20, ...(cursor ? { cursor } : {}) }, controller.signal);
       if (disposed || generation !== requestGeneration) return;
       // 応答のstateを別コピーとして表示せず、Storeの整合ルールを通して取り込む。
-      articleState.accept(page.articles, readVersion);
+      articleData.importFetchedArticles(page.articles, readVersion, articleState.hasUnfinishedFieldChange);
       const ids = new Set(mode === 'append' ? articleIds.value : []);
       for (const article of page.articles) ids.add(article.articleId);
       articleIds.value = [...ids];
@@ -98,7 +99,7 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
     return request(articleIds.value.length ? 'refresh' : 'initial');
   }
   function changeKind(value: ArticleListKind): Promise<void> {
-    if (!articleState.status.ready || value === kind.value || disposed) return Promise.resolve();
+    if (!articleState.syncStatus.startupSyncComplete || value === kind.value || disposed) return Promise.resolve();
     cancelPull();
     kind.value = value; articleIds.value = []; nextCursor.value = null; hasMore.value = false;
     return request('initial');
@@ -109,22 +110,22 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
   // 画面から来る「反転」の意図を、現在の表示値に対する明示値へ変換してModelへ渡す。
   // ServiceへはsetState(id, field, true/false)を依頼するため、再送で反転を繰り返さない。
   function toggleState(articleId: number, field: StateField): void {
-    const current = articleState.getArticle(articleId);
-    if (!disposed && current && articleState.canChange) sync.setState(articleId, field, !current.state[field]);
+    const current = articleState.applyUnfinishedChanges(articleData.getConfirmedArticle(articleId));
+    if (!disposed && current && articleState.canChangeArticles) sync.setArticleState(articleId, field, !current.state[field]);
   }
   function togglePin(articleId: number): void { toggleState(articleId, 'pinned'); }
   function toggleInterest(articleId: number): void { toggleState(articleId, 'interested'); }
-  function retrySync(): void { if (!disposed) sync.retry(); }
-  function discardBlocked(): void { if (!disposed) sync.discardBlocked(); }
+  function retrySync(): void { if (!disposed) sync.retryUnfinishedChanges(); }
+  function discardBlocked(): void { if (!disposed) sync.discardBlockedChanges(); }
 
   // 起動時の残りを同期してから初回一覧を取得する。復旧待ちは一度だけ監視する。
   async function initialize(): Promise<void> {
     if (initializing || disposed) return;
     initializing = true;
-    await sync.start();
+    await sync.restoreAndSyncUnfinishedChanges();
     if (disposed) return;
-    if (articleState.status.ready) await refresh();
-    else stopReady = watch(() => articleState.status.ready, (ready) => {
+    if (articleState.syncStatus.startupSyncComplete) await refresh();
+    else stopReady = watch(() => articleState.syncStatus.startupSyncComplete, (ready) => {
       if (ready) { stopReady?.(); stopReady = null; void refresh(); }
     });
   }
@@ -138,4 +139,4 @@ export function useArticleListViewModel(api: ArticleListApi, articleState: Artic
 }
 export type ArticleListViewModel = ReturnType<typeof useArticleListViewModel>;
 
-export interface ArticleListServices { api: ArticleListApi; articleState: ArticleStateStore; sync: ArticleStateActions }
+export interface ArticleListServices { api: ArticleListApi; articleState: ArticleChangeStore; articleData: ArticleDataStore; sync: ArticleChangeActions }
