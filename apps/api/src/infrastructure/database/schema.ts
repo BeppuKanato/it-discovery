@@ -56,3 +56,22 @@ export const appSettings = sqliteTable('app_settings', {
   check('settings_positive_max', sql`${table.maxArticles} > 0`),
   check('settings_valid_hour', sql`${table.collectionHour} BETWEEN 0 AND 23`),
 ]);
+
+// 記事への外部キーは付けない。記事削除後も結果を残し、古い再送を再実行しない。
+export const articleStateOperations = sqliteTable('article_state_operations', {
+  operationId: text('operation_id').primaryKey(),
+  requestKey: text('request_key').notNull(),
+  articleId: integer('article_id').notNull(),
+  status: text('status', { enum: ['saved', 'missing'] }).notNull(),
+  interested: integer('interested', { mode: 'boolean' }),
+  pinned: integer('pinned', { mode: 'boolean' }),
+  lastOpenedAt: integer('last_opened_at', { mode: 'timestamp_ms' }),
+}, (table) => [
+  check('operation_result_state', sql`(
+    ${table.status} = 'saved' AND ${table.interested} IS NOT NULL AND ${table.pinned} IS NOT NULL
+    AND ${table.interested} IN (0, 1) AND ${table.pinned} IN (0, 1)
+  ) OR (
+    ${table.status} = 'missing' AND ${table.interested} IS NULL
+    AND ${table.pinned} IS NULL AND ${table.lastOpenedAt} IS NULL
+  )`),
+]);
