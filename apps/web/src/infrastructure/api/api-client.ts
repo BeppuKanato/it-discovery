@@ -1,7 +1,19 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
-import type { ArticlePageRequest, ArticlePageResponse, HealthResponse } from '@it-discovery/contracts';
+import type { ArticlePageRequest, ArticlePageResponse, HealthResponse, ArticleStateMutationRequest, ArticleStateOperationResponse } from '@it-discovery/contracts';
 import { isArticlePageResponse } from './article-page-response';
+import { isArticleStateOperationResponse } from './article-state-response';
+import { ArticleChangeRequestError } from '../../features/article-changes/models/article-change-contracts';
+
+// 通信エラーや500は保存済みの可能性がある。400だけを入力拒否、認証・競合は要確認とする。
+function stateRequestError(error: unknown): ArticleChangeRequestError {
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+  if (status === 400) return new ArticleChangeRequestError('invalid', '変更が受け付けられなかったため、その変更を戻しました。');
+  if (status !== undefined && status >= 400 && status < 500 && ![408, 425, 429].includes(status)) {
+    return new ArticleChangeRequestError('blocked', '本人確認・操作内容を確認して再試行してください。未送信変更は残しています。');
+  }
+  return new ArticleChangeRequestError('temporary', '保存結果を確認しています。通信の復旧後に再試行します。');
+}
 
 export class ApiClient {
   private readonly http: AxiosInstance;
@@ -20,6 +32,29 @@ export class ApiClient {
       throw new Error('一覧の応答を確認できませんでした。');
     }
     return data;
+  }
+
+  // 反転ではなく、明示した値と同じ操作IDを送る。再送でも要求内容を変更しない。
+  async applyArticleState(articleId: number, request: ArticleStateMutationRequest, signal?: AbortSignal): Promise<ArticleStateOperationResponse> {
+    try {
+      const { data } = await this.http.put<unknown>(`/articles/${articleId}/state`, request, { signal });
+      if (!isArticleStateOperationResponse(data, request.operationId, articleId)) throw new Error('操作結果が一致しません。');
+      return data;
+    } catch (error) { throw stateRequestError(error); }
+  }
+
+  // 404は「結果未記録」。元の保存要求が失敗したという意味にはしない。
+  async getArticleStateOperation(operationId: string, signal?: AbortSignal): Promise<ArticleStateOperationResponse | undefined> {
+    try {
+      const { data } = await this.http.get<unknown>(`/article-state-operations/${operationId}`, { signal });
+      if (!isArticleStateOperationResponse(data, operationId)) throw new Error('操作結果が一致しません。');
+      return data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) return undefined;
+      const failure = stateRequestError(error);
+      // 照会の400は元のPUTの失敗を証明しない。変更を戻さず、要確認として残す。
+      throw failure.kind === 'invalid' ? new ArticleChangeRequestError('blocked', '保存結果を照会できません。変更を残して再確認してください。') : failure;
+    }
   }
 
   // 疎通確認の応答を取得して形式を確認する。

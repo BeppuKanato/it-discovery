@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ApiClient } from '../infrastructure/api/api-client';
-import ArticleListPage from '../features/list/components/ArticleListPage.vue';
+import { onMounted, onUnmounted } from 'vue';
+import ArticleListPage from '../features/list/views/pages/ArticleListPage.vue';
+import type { ApplicationModels } from './create-application-models';
 
-// import.meta.envはViteが渡す設定。未指定なら同じ配信元の/apiへ接続する。
-// 通信部品はここで作り、画面へ渡す。画面自身はAxiosの生成方法を知らなくてよい。
-const api = new ApiClient(import.meta.env.VITE_API_BASE_URL || '/api');
+// Appはアプリ起動の入口。一覧の初回取得は「端末同期の解消後」という順番で起動Modelへ頼む。
+const props = defineProps<{ models: ApplicationModels }>();
+const articleList = props.models.createArticleList();
+onMounted(() => { void props.models.startup.startArticleList(articleList); });
+onUnmounted(() => { articleList.dispose(); props.models.dispose(); });
 </script>
 
 <template>
-  <!-- :apiは文字列ではなく、scriptで作ったapiオブジェクトを子のpropsへ渡す。 -->
-  <ArticleListPage :api="api" />
+  <ArticleListPage :list-model="articleList" :article-changes="models.articleChanges" />
 </template>

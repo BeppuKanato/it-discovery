@@ -4,11 +4,13 @@ import Button from 'primevue/button';
 import Card from 'primevue/card';
 import Tag from 'primevue/tag';
 import type { ArticleListItem } from '@it-discovery/contracts';
-import { articleCardTokens } from '../app/ui-theme';
-import SourceBadge from './SourceBadge.vue';
+import { articleCardTokens } from '../../app/ui-theme';
+import SourceBadge from '../molecules/SourceBadge.vue';
 
 // definePropsは親から受け取る値の型を宣言するVueの機能。article自体はこの部品で変更しない。
-const props = defineProps<{ article: ArticleListItem }>();
+const props = defineProps<{ article: ArticleListItem; editable?: boolean; actionsDisabled?: boolean }>();
+// defineEmitsは親へ通知するイベントの型を宣言する。DB保存は親へ任せ、この部品は表示を担当する。
+const emit = defineEmits<{ interest: []; pin: [] }>();
 // useIdは部品ごとに異なるIDを作る。同じカードを複数並べても見出しのIDが衝突しない。
 const titleId = useId();
 // refは値の変化を画面へ反映する状態。scriptでは.value、templateでは値をそのまま参照できる。
@@ -49,7 +51,14 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
         <div class="thumbnail-frame">
           <!-- :classの{ expanded }は、expandedがtrueのときだけ同名のCSSクラスを付ける。 -->
           <div class="thumbnail" :class="{ expanded }">
-            <Tag v-if="article.state.pinned" value="ピン止め" severity="secondary" rounded class="pin-state" />
+            <!-- .stopはクリックが親へ伝わるのを止め、元記事を開く操作と分離する。
+                 aria-pressedは押し込み状態を示す。送信中も押せるため最後の希望まで操作できる。 -->
+            <Button v-if="editable" type="button" text rounded class="pin-action" :class="{ selected: article.state.pinned }"
+              :aria-label="article.state.pinned ? 'ピン止めを解除' : 'ピン止めする'" :aria-pressed="article.state.pinned"
+              :disabled="actionsDisabled" @click.stop="emit('pin')">
+              <template #icon><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 3 6 6-4 1-3 5-2-2-6 6-1-1 6-6-2-2 5-3z" /></svg></template>
+            </Button>
+            <Tag v-else-if="article.state.pinned" value="ピン止め" severity="secondary" rounded class="pin-state" />
             <div ref="copy" class="article-copy">
               <h2 :id="titleId">{{ article.title }}</h2>
               <!-- v-ifは条件付き描画。概要がなければ段落そのものを作らない。 -->
@@ -76,7 +85,13 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
           </div>
           <div class="states">
             <span v-if="article.state.lastOpenedAt" class="read-state">既読</span>
-            <Tag v-if="article.state.interested" value="気になる" severity="success" rounded />
+            <Button v-if="editable" type="button" size="small" rounded :text="!article.state.interested"
+              :label="article.state.interested ? '気になる登録済み' : '気になる'"
+              :aria-label="article.state.interested ? '気になるを解除' : '気になるに登録'" :aria-pressed="article.state.interested"
+              :disabled="actionsDisabled" class="interest-action" @click.stop="emit('interest')">
+              <template #icon><svg viewBox="0 0 24 24" width="15" height="15" :fill="article.state.interested ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z" /></svg></template>
+            </Button>
+            <Tag v-else-if="article.state.interested" value="気になる" severity="success" rounded />
           </div>
         </div>
       </template>
@@ -91,6 +106,9 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
 .thumbnail-frame { padding: 7px; background: linear-gradient(135deg, var(--p-discovery-frame-start), var(--p-discovery-frame-end)); }
 .thumbnail { position: relative; display: flex; flex-direction: column; min-height: 244px; padding: 27px 18px 12px; border-radius: 15px; background: var(--p-discovery-paper); }
 .pin-state { position: absolute; top: 10px; left: 12px; font-size: 10px; }
+.pin-action { position: absolute; top: 5px; left: 7px; width: 44px; height: 44px; color: var(--p-discovery-muted); }
+.pin-action.selected { color: var(--p-primary-color); background: var(--p-primary-50); }
+.interest-action { min-height: 38px; font-size: 10px; padding: 7px 10px; }
 .article-copy { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 161px; padding: 8px 3px 16px; text-align: center; }
 h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; margin: 0; color: var(--p-discovery-ink); font-size: clamp(18px, 4.7vw, 22px); line-height: 1.55; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 13px 0 0; color: var(--p-discovery-muted); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
