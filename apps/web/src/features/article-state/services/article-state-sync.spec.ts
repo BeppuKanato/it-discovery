@@ -221,4 +221,14 @@ describe('一覧変更の即時反映・順序・再送', () => {
     await other.start(); expect(other.ready).toBe(false); expect(other.startupError).toContain('失敗');
     other.retry(); await flush(); expect(other.ready).toBe(true);
   });
+
+  it('終了後の遅い応答では端末記録を消さず、次回の照会用に残す', async () => {
+    const response = deferred<ArticleStateOperationResponse>();
+    vi.mocked(api.applyArticleState).mockReturnValueOnce(response.promise);
+    sync.change(article(1), 'interested'); await flush();
+    const call = vi.mocked(api.applyArticleState).mock.calls[0]!;
+    sync.dispose(); expect(call[2]?.aborted).toBe(true);
+    response.resolve(saved(1, call[1])); await flush();
+    expect(disk.size).toBe(1); expect(store.remove).not.toHaveBeenCalled();
+  });
 });

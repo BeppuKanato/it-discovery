@@ -8,39 +8,52 @@ import ArticleCard from '../../../components/ArticleCard.vue';
 import type { ArticleListApi } from '../models/article-list-api';
 import { useArticleList } from '../controllers/useArticleList';
 import { usePullToRefresh } from '../controllers/usePullToRefresh';
+import type { ArticleStateApi, StateOperationStore } from '../../article-state/models/state-sync';
+import { useArticleStateChanges } from '../../article-state/controllers/useArticleStateChanges';
 
 // definePropsで親から通信部品を受け取る。取得方法を差し替えても画面の表示は共通にできる。
-const props = defineProps<{ api: ArticleListApi }>();
+const props = defineProps<{ api: ArticleListApi & ArticleStateApi; stateStore: StateOperationStore; acquireSyncOwner: () => Promise<(() => void) | null> }>();
+const { sync, status: syncStatus, revision: syncRevision } = useArticleStateChanges(props.api, props.stateStore, props.acquireSyncOwner);
 // Composableが返すrefを取り出す。分割代入してもrefなのでVueの変更追跡は維持される。
-const { kind, articles, hasMore, loading, error, refresh, changeKind, loadMore, retry, dispose } = useArticleList(props.api);
+const { kind, articles, hasMore, loading, error, refresh, changeKind, loadMore, retry, dispose } = useArticleList(props.api, sync, syncRevision);
 const options = [{ label: 'すべて', value: 'all' }, { label: '気になる', value: 'interested' }];
 // templateのref="sentinel"で末尾のHTML要素を受け取る。空一覧ではnullになる。
 const sentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
-const pull = usePullToRefresh(refresh, () => loading.value !== 'initial' && loading.value !== 'refresh');
+const pull = usePullToRefresh(refresh, () => syncStatus.value.ready && loading.value !== 'initial' && loading.value !== 'refresh');
 const { distance: pullDistance, ready: pullReady } = pull;
+function online(): void { sync.setOnline(navigator.onLine); }
 
 // 画面に近づいた末尾を監視して、続きを取得する。
 onMounted(() => {
+  online();
+  window.addEventListener('online', online);
+  window.addEventListener('offline', online);
   if (typeof IntersectionObserver !== 'undefined') {
     // IntersectionObserverは要素が表示範囲に入ると通知するブラウザAPI。
     // rootMarginで末尾が見える240px手前から追加取得を始める。
     observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+      if (syncStatus.value.ready && entries.some((entry) => entry.isIntersecting)) void loadMore();
     }, { rootMargin: '240px 0px' });
     if (sentinel.value) observer.observe(sentinel.value);
   }
   // voidはPromiseの完了をここで待たない指定。失敗の表示はComposable内で処理する。
-  void refresh();
+  void sync.start();
 });
+// watchで起動時同期の完了を待ち、残っていた一覧変更を確定してから最初の一覧を取得する。
+// readyは通常操作を始めた後はtrueのまま。毎回の保存で一覧を再取得するわけではない。
+watch(() => syncStatus.value.ready, (ready) => { if (ready) void refresh(); });
 // v-ifで末尾が作り直されるたび、監視対象を新しいHTML要素へ付け替える。
 watch(sentinel, (element) => { observer?.disconnect(); if (element) observer?.observe(element); });
 // 画面を離れるときに監視・指の操作・通信を止め、古い応答による状態変更を防ぐ。
-onUnmounted(() => { observer?.disconnect(); pull.cancel(); dispose(); });
+onUnmounted(() => {
+  observer?.disconnect(); pull.cancel(); dispose(); sync.dispose();
+  window.removeEventListener('online', online); window.removeEventListener('offline', online);
+});
 
 function selectKind(value: unknown): void {
   // unknownを検査して、APIで扱える2種類だけに型を絞る。
-  if (value !== 'all' && value !== 'interested') return;
+  if (!syncStatus.value.ready || (value !== 'all' && value !== 'interested')) return;
   pull.cancel();
   if (value !== kind.value) window.scrollTo({ top: 0 });
   void changeKind(value);
@@ -70,7 +83,7 @@ function touchMove(event: TouchEvent): void {
       <div class="brand"><span class="brand-mark" aria-hidden="true">i</span><span>IT Discovery</span></div>
       <Button
         type="button" label="更新" text size="small" :loading="loading === 'refresh'"
-        :disabled="loading === 'initial' || loading === 'refresh'" aria-label="一覧を更新"
+        :disabled="!syncStatus.ready || loading === 'initial' || loading === 'refresh'" aria-label="一覧を更新"
         @click="refresh"
       ><template #icon><span aria-hidden="true" class="refresh-icon">↻</span></template></Button>
     </header>
@@ -84,8 +97,18 @@ function touchMove(event: TouchEvent): void {
     <!-- :model-valueで選択値を渡し、@update:model-valueで変更要求を受け取る。
          状態の更新はselectKindにまとめるため、ここではv-modelの自動代入を使わない。 -->
     <div class="list-toolbar">
-      <SelectButton :model-value="kind" :options="options" option-label="label" option-value="value" :allow-empty="false" fluid aria-label="記事一覧の種類" class="list-tabs" @update:model-value="selectKind" />
+      <SelectButton :model-value="kind" :options="options" :disabled="!syncStatus.ready" option-label="label" option-value="value" :allow-empty="false" fluid aria-label="記事一覧の種類" class="list-tabs" @update:model-value="selectKind" />
       <div class="list-caption"><span>取得した日時が新しい順</span><span v-if="articles.length">{{ articles.length }}件を表示中</span></div>
+    </div>
+
+    <!-- 保存状況はカードとは別に表示する。通常の非同期保存で操作を待たせない。 -->
+    <div class="sync-status" aria-live="polite">
+      <Message v-if="syncStatus.startupError" severity="warn" :closable="false">{{ syncStatus.startupError }}</Message>
+      <p v-else-if="!syncStatus.ready">{{ syncStatus.pendingCount ? '端末に残った変更を同期しています…' : '端末の保存状態を確認しています…' }}</p>
+      <p v-else-if="syncStatus.pendingCount">{{ syncStatus.online ? `${syncStatus.pendingCount}件の変更を保存しています…` : `${syncStatus.pendingCount}件の変更が未送信です。オンライン復帰後に保存します。` }}</p>
+      <Message v-if="syncStatus.notice" :severity="syncStatus.storageError || syncStatus.blockedCount ? 'warn' : 'info'" :closable="false">{{ syncStatus.notice }}</Message>
+      <Button v-if="syncStatus.startupError || syncStatus.storageError || syncStatus.blockedCount" label="再試行" type="button" text size="small" @click="sync.retry()" />
+      <Button v-if="syncStatus.blockedCount" label="要確認の変更を破棄" type="button" text severity="danger" size="small" @click="sync.discardBlocked()" />
     </div>
 
     <div class="pull-status" :style="{ height: `${loading === 'refresh' ? 40 : pullDistance}px` }" role="status">
@@ -95,7 +118,7 @@ function touchMove(event: TouchEvent): void {
 
     <!-- aria-busyは支援技術へ取得中を伝える属性。見た目の切り替えは下のv-ifが担当する。 -->
     <section :aria-busy="loading !== null" aria-label="記事一覧">
-      <div v-if="loading === 'initial'" class="article-grid" aria-label="一覧を読み込んでいます">
+      <div v-if="!syncStatus.ready || loading === 'initial'" class="article-grid" aria-label="一覧を読み込んでいます">
         <div v-for="index in 3" :key="index" class="skeleton-card" aria-hidden="true">
           <Skeleton height="220px" border-radius="15px" />
           <Skeleton width="40%" height="12px" class="skeleton-date" />
@@ -105,10 +128,13 @@ function touchMove(event: TouchEvent): void {
       <!-- v-if/v-else-ifは最初に成立した分岐だけ描画する。
            v-forで記事を繰り返し、:keyにIDを渡してVueが各カードを識別できるようにする。 -->
       <ul v-else-if="articles.length" class="article-grid">
-        <li v-for="article in articles" :key="article.articleId"><ArticleCard :article="article" /></li>
+        <li v-for="article in articles" :key="article.articleId">
+          <ArticleCard :article="article" editable :actions-disabled="!syncStatus.canChange"
+            @interest="sync.change(article, 'interested')" @pin="sync.change(article, 'pinned')" />
+        </li>
       </ul>
 
-      <section v-else-if="!error" class="empty-state">
+      <section v-else-if="!error && !hasMore" class="empty-state">
         <span class="empty-symbol" aria-hidden="true">{{ kind === 'all' ? '✧' : '♡' }}</span>
         <h2>{{ kind === 'all' ? 'まだ記事がありません' : '気になる記事はまだありません' }}</h2>
         <p>{{ kind === 'all' ? '収集された情報は、ここに並びます。' : '気になるに登録した記事を、ここで見られます。' }}</p>
@@ -120,7 +146,8 @@ function touchMove(event: TouchEvent): void {
         <Button type="button" label="もう一度試す" outlined @click="retry" />
       </div>
 
-      <div v-if="articles.length" ref="sentinel" class="list-end">
+      <!-- 表示中の20件を全て解除しても、続きがあるなら末尾の監視と追加ボタンを残す。 -->
+      <div v-if="articles.length || hasMore" ref="sentinel" class="list-end">
         <Button v-if="hasMore && !error" type="button" label="続きを読み込む" text :loading="loading === 'append'" :disabled="loading !== null" @click="loadMore" />
         <p v-else-if="!hasMore && !error" class="end-note">ここまでの情報を表示しました</p>
       </div>
@@ -146,6 +173,8 @@ h1 { margin: 0; font-size: clamp(27px, 7.5vw, 33px); line-height: 1.4; letter-sp
 .list-tabs :deep(.p-togglebutton) { flex: 1; min-height: 44px; font-size: 13px; }
 .list-caption { display: flex; justify-content: space-between; gap: 10px; padding: 14px 1px 15px; color: var(--p-discovery-muted); font-size: 10px; }
 .pull-status { display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--p-primary-color); font-size: 12px; }
+.sync-status { color: var(--p-discovery-muted); font-size: 11px; line-height: 1.8; }
+.sync-status :deep(.p-message) { margin-bottom: 12px; }
 .article-grid { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
 .article-grid li { min-width: 0; }
 .skeleton-card { padding: 8px; border: 1px solid var(--p-discovery-line); border-radius: 22px; background: var(--p-discovery-paper); }
