@@ -103,4 +103,3 @@ describe('記事状態の変更と再送の判断', () => {
     expect(service.getState(1)).toEqual(current.state);
   });
 });
-

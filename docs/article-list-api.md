@@ -2,7 +2,7 @@
 
 [READMEに戻る](../README.md) · [データ方針](data-policy.md) · [保存基盤の構成](storage-architecture.md)
 
-DBに保持中の記事を一ページずつ取得する。外部サイトの収集や一覧画面、気になる・ピン・既読を変更するAPIは後続Issueで扱う。
+DBに保持中の記事を一ページずつ取得する。[一覧画面](article-list-ui.md)と[状態変更API](article-state-api.md)は別Issueで追加した。外部サイトの収集は後続Issueで扱う。
 
 ## 呼び出し方
 

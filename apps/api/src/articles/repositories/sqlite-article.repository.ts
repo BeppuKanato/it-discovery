@@ -104,4 +104,3 @@ export class SqliteArticleRepository extends ArticleRepository {
     });
   }
 }
-
