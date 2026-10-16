@@ -18,6 +18,7 @@ export function parseInterestBatch(input: unknown): { revision: number; articleI
   const ids = body['articleIds'];
   if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision <= 0
     || !Array.isArray(ids) || ids.length > SORTING_LIMIT) throw invalid();
+  // Array.fromは配列の空要素も検査対象にする。Setのsizeとの比較で重複IDも拒否する。
   if (Array.from(ids).some((id: unknown) => typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)
     || new Set(ids).size !== ids.length) throw invalid();
   // ID集合なので列挙順は意味を持たない。元の配列を変更せず、比較と応答の順序を統一する。

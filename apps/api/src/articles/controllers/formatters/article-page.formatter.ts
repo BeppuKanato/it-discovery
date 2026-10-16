@@ -1,26 +1,12 @@
 import type { ArticlePageResponse } from '@it-discovery/contracts';
 import type { ArticleListKind, ArticlePage } from '../../models/article-page';
 import { encodeArticleCursor } from './article-cursor.formatter';
+import { toArticleListItem } from './article.formatter';
 
-// 内部データを表示用JSONへ変換し、日時とカーソルを文字列にする。
+// カード情報の変換は仕分けと共有し、一覧用の続き位置だけをここで付ける。
 export function toArticlePageResponse(page: ArticlePage, kind: ArticleListKind): ArticlePageResponse {
   return {
-    articles: page.articles.map(({ article, source, state }) => ({
-      articleId: article.articleId,
-      url: article.url,
-      title: article.title,
-      description: article.description ?? null,
-      author: article.author ?? null,
-      fetchedAt: article.fetchedAt.toISOString(),
-      publishedAt: article.publishedAt?.toISOString() ?? null,
-      sourceUpdatedAt: article.sourceUpdatedAt?.toISOString() ?? null,
-      source: { sourceId: source.sourceId, siteName: source.siteName, iconUrl: source.iconUrl },
-      state: {
-        interested: state.interested,
-        pinned: state.pinned,
-        lastOpenedAt: state.lastOpenedAt?.toISOString() ?? null,
-      },
-    })),
+    articles: page.articles.map(toArticleListItem),
     hasMore: page.hasMore,
     nextCursor: page.nextPosition ? encodeArticleCursor(page.nextPosition, kind) : null,
   };

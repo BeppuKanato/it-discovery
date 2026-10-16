@@ -26,6 +26,7 @@ export class ArticleSortingService {
   submit(batchId: string, input: unknown): InterestBatchResult {
     const id = normalizeBatchId(batchId);
     const { revision, articleIds } = parseInterestBatch(input);
+    // 昇順にそろえたID集合を文字列化し、前回の送信内容と比較する。版は別に比較する。
     const requestKey = JSON.stringify(articleIds);
     return this.articles.transaction(() => {
       const previous = this.batches.findById(id);
@@ -37,6 +38,7 @@ export class ArticleSortingService {
         return previous.result;
       }
       const results: InterestBatchResult['results'] = [];
+      // for...ofは配列の添字ではなく、記事IDそのものを一つずつ取り出す。
       for (const articleId of articleIds) {
         const current = this.articles.findById(articleId);
         if (!current) {
