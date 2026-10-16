@@ -20,6 +20,8 @@ export abstract class ArticleRepository {
   abstract findById(articleId: number): StoredArticle | undefined;
   // 指定位置より古い記事を取得日時とIDの降順で取得する。
   abstract findPage(query: ArticlePageQuery): ArticleListEntry[];
+  // 未読・気になる未登録・ピンなしを取得日時とIDの降順で取得する。
+  abstract findSortingCandidates(limit: number): ArticleListEntry[];
   // 指定された状態の項目だけを保存する。
   abstract updateState(articleId: number, patch: Partial<ArticleState>): StoredArticle | undefined;
 }

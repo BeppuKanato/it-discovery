@@ -9,3 +9,5 @@ export interface HealthResponse {
   status: 'ok';
   message: string;
 }
+
+export type { SortingCandidatesResponse, InterestBatchRequest, InterestBatchResponse } from './sorting';
