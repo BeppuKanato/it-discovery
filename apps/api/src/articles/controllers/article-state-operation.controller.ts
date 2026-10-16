@@ -1,8 +1,8 @@
 import { Controller, Get, Header, Inject, NotFoundException, Param, UseFilters } from '@nestjs/common';
 import type { ArticleStateOperationResponse } from '@it-discovery/contracts';
 import { ArticleStateService } from '../services/article-state.service';
-import { ArticleStateExceptionFilter } from './article-state-exception.filter';
-import { toStateOperationResponse } from './article-state.response';
+import { ArticleStateExceptionFilter } from './filters/article-state-exception.filter';
+import { toStateOperationResponse } from './formatters/article-state.formatter';
 
 @Controller('article-state-operations')
 @UseFilters(ArticleStateExceptionFilter)

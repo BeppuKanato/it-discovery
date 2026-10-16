@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Header, Inject, NotFoundException, Param, Put, UseFilters } from '@nestjs/common';
 import type { ArticleStateOperationResponse, ArticleStateResponse } from '@it-discovery/contracts';
 import { ArticleStateService } from '../services/article-state.service';
-import { ArticleIdPipe } from './article-id.pipe';
-import { ArticleStateExceptionFilter } from './article-state-exception.filter';
-import { toStateOperationResponse, toStateValue } from './article-state.response';
+import { ArticleIdPipe } from './pipes/article-id.pipe';
+import { ArticleStateExceptionFilter } from './filters/article-state-exception.filter';
+import { toStateOperationResponse, toStateValue } from './formatters/article-state.formatter';
 
 // このControllerは記事ごとの状態の入口。操作結果の照会は別Controllerへ分ける。
 @Controller('articles/:articleId/state')

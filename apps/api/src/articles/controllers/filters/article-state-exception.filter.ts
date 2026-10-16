@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, Inject, type ExceptionFilter } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { StateOperationError } from '../models/article-state-operation';
+import { StateOperationError } from '../../models/article-state-operation';
 
 // この種類のアプリ入力エラーだけをHTTPへ変換する。DB障害を400にしない。
 @Catch(StateOperationError)

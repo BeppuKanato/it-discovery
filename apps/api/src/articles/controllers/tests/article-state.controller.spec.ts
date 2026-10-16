@@ -6,11 +6,11 @@ import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { eq } from 'drizzle-orm';
-import { AppModule } from '../../app.module';
-import { DatabaseService } from '../../infrastructure/database/database.service';
-import { articles, articleStateOperations } from '../../infrastructure/database/schema';
-import { ArticleService } from '../services/article.service';
-import { ArticleStateService } from '../services/article-state.service';
+import { AppModule } from '../../../app.module';
+import { DatabaseService } from '../../../infrastructure/database/database.service';
+import { articles, articleStateOperations } from '../../../infrastructure/database/schema';
+import { ArticleService } from '../../services/article.service';
+import { ArticleStateService } from '../../services/article-state.service';
 import type { ArticleStateOperationResponse, ArticleStateResponse } from '@it-discovery/contracts';
 
 describe('記事状態と操作結果のHTTP API', () => {

@@ -2,8 +2,8 @@ import { BadRequestException, Controller, Get, Header, Inject, Query } from '@ne
 import type { ArticlePageResponse } from '@it-discovery/contracts';
 import { ArticleService } from '../services/article.service';
 import { InvalidArticlePageQueryError, type ArticlePageQuery } from '../models/article-page';
-import { ArticlePageQueryPipe } from './article-page-query.pipe';
-import { toArticlePageResponse } from './article-page.response';
+import { ArticlePageQueryPipe } from './pipes/article-page-query.pipe';
+import { toArticlePageResponse } from './formatters/article-page.formatter';
 
 @Controller('articles')
 export class ArticlesController {
