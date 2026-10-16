@@ -146,3 +146,5 @@ npm run build
 ```
 
 Serviceの判断、SQLiteの複数ページ・同時刻・途中削除・新着・取得先との対応、実際のNestに対するHTTP入力とJSON応答をテストする。
+
+一覧と仕分けの共通カード情報は[article.formatter.ts](../apps/api/src/articles/controllers/formatters/article.formatter.ts)で変換し、一覧用Formatterがページの続き位置を付ける。

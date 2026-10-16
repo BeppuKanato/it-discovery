@@ -75,3 +75,11 @@ export const articleStateOperations = sqliteTable('article_state_operations', {
     AND ${table.pinned} IS NULL AND ${table.lastOpenedAt} IS NULL
   )`),
 ]);
+
+// 記事削除後も再送結果を保持するため、記事への外部キーは持たせない。
+export const articleInterestBatches = sqliteTable('article_interest_batches', {
+  batchId: text('batch_id').primaryKey(),
+  revision: integer('revision').notNull(),
+  requestKey: text('request_key').notNull(),
+  results: text('results').notNull(),
+}, (table) => [check('batch_positive_revision', sql`${table.revision} > 0`)]);
