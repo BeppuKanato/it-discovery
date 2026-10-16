@@ -29,7 +29,7 @@
 ## 責務と説明の方針
 
 - 機能を最上位にまとめる。DB接続などの共通基盤はinfrastructureに置く。特定の機能のルールは、その機能が持つ。
-- 機能内はcontrollers・services・repositories・modelsで役割を表す。Nestのcontrollers直下はHTTP入口の*.controller.tsだけにする。補助処理はcontrollers/formatters・pipes・filters、テストはcontrollers/testsへ分ける。Repositoryの抽象と具体実装はrepositoriesにまとめる。必要なフォルダだけ作る。
+- Nestの機能内はcontrollers・services・repositories・modelsで役割を表す。Nestのcontrollers直下はHTTP入口の*.controller.tsだけにする。補助処理はcontrollers/formatters・pipes・filters、テストはcontrollers/testsへ分ける。Repositoryの抽象と具体実装はrepositoriesにまとめる。必要なフォルダだけ作る。
 - FormatterはHTTP入出力の形式変換を行う。カーソルのエンコード・デコードなど双方で使う変換もformattersに置く。Serviceからは参照しない。
 - 機能固有のPipe・Filter・Interceptorは対象Controllerまたはメソッド・引数で適用を明示する。Moduleや隠れた登録経由で一部のControllerへ選択的に適用しない。
 - 全Controller共通のHTTP部品が必要になった場合だけinfrastructure/http配下へ置き、main.tsの一か所でグローバル登録する。登録と適用範囲を資料へ記載し、Controllerごとの隠れた除外や条件分岐を作らない。部品の種類は役割で選び、共通だからという理由だけでMiddlewareへ変えない。
@@ -44,3 +44,14 @@
 - PRには説明図へのリンクと、機能・変更目的ごとのコミットおよび確認ファイルを載せる。
 
 実装例は[保存基盤の構成図](docs/storage-architecture.md)を参照する。
+
+## フロントの設計
+
+- MVVM＋Atomic Designを採用する。機能を先に分け、その中をviews・view-models・modelsで分ける。共通の通信・端末保存はinfrastructureへ置く。
+- Viewは描画・DOM・ジェスチャー・イベント通知を担当する。Pageが子のemitとViewModelの操作を結ぶ。子に業務処理を持たせない。
+- ViewModelはページ固有の状態・computedによる表示用データ・操作窓口を持つ。共通の記事状態はPinia Storeへ集め、同じ記事状態をページごとに重複保持しない。
+- ModelはStoreと同期Serviceなどを含む。Storeは値と状態遷移、同期Serviceは端末保存・送信・再送の手順を担当する。Viewを参照しない。
+- 共有同期Serviceはappで一度組み立てる。Pageの終了で共通の送信処理を止めず、アプリ終了時に解放する。
+- PrimeVueの基本部品をAtomsとして使う。名前を合わせるだけのラッパーや空フォルダは作らない。Moleculeは小さなUI機能、Organismは画面内のまとまり、Templateは配置、PageはViewModelとの接続を担当する。
+- 辞書は用途に応じてMap・Recordを使う。動的キーや一部だけ存在するキーはMap、固定キーで同じ値型の必須項目はRecordを基本にする。項目ごとに型が違うデータはinterfaceなどで表す。省略可能な辞書をPartial<Record<...>>で表す構造を増やさない。
+- 構成変更時は[フロントの構成図](docs/frontend-architecture.md)を更新する。依存関係・部品構成・実行順序は別図にし、StoreとViewModelの状態の持ち主を明示する。

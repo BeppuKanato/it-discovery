@@ -49,6 +49,7 @@ npm run build
 - [HTTP処理の配置と適用範囲](docs/http-structure.md)：Controller・補助処理の配置、共通設定とAPI別の適用一覧。
 - [仕分け対象・一括登録API](docs/sorting-api.md)：最大10件の取得、最終ID集合の登録、途中削除と再送、構成図。
 - [記事状態の変更・確認API](docs/article-state-api.md)：再送・既読日時・削除済み応答・構成図。
+- [フロントのMVVM＋Atomic Design](docs/frontend-architecture.md)：レイヤー・状態の持ち主・部品分割・ピン操作の流れと読む順序。
 - [一覧の気になる・ピン操作](docs/article-list-state.md)：即時反映、端末保存、順序制御と再送、構成図と読む順序。
 - [記事一覧画面の実装](docs/article-list-ui.md)：構成図、取得と再試行の流れ、画面例と確認結果。
 - [画面構成の参照](docs/ui-reference.md)：採用した「サムネの中」の配置と、旧モックとの仕様の違い。

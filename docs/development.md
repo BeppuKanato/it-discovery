@@ -10,7 +10,7 @@
 - npm 10以上。npm workspacesを使い、依存はルートのpackage-lock.jsonで固定する。
 - Git。
 
-TypeScriptは5.9系を使う。今回のVue型チェックとNestのコンパイルで互換性を確認し、TypeScript 7への移行は含めない。Issue #6でDrizzle ORM 0.45.4・better-sqlite3 13.0.3・Drizzle Kit 0.31.11・tsx 4.23.15を追加した。[SQLiteの手順](database.md)を参照する。Issue #11でidb 8.0.4と、テスト用のfake-indexeddb 6.2.5を追加した。Pinia・Vue Router・定期実行は必要な機能のIssueで追加する。
+TypeScriptは5.9系を使う。今回のVue型チェックとNestのコンパイルで互換性を確認し、TypeScript 7への移行は含めない。Issue #6でDrizzle ORM 0.45.4・better-sqlite3 13.0.3・Drizzle Kit 0.31.11・tsx 4.23.15を追加した。[SQLiteの手順](database.md)を参照する。Issue #11でidb 8.0.4と、テスト用のfake-indexeddb 6.2.5を追加した。同じIssueで共有状態を持つPinia 4.1.0を追加した。Vue Router・定期実行は必要な機能のIssueで追加する。
 
 .npmrcでNode.jsの要件を満たさないインストールを拒否する。Nest 12のES ModulesをJestが読み込むため、APIのテストコマンドだけでNodeのexperimental-vm-modulesを指定する。通常のアプリ起動には指定しない。
 
@@ -106,19 +106,23 @@ previewはローカルの表示確認用で、本番公開用サーバーでは�
 
 ## コードを読む順序
 
-1. apps/web/src/app/App.vue：表示とボタン入力。
-2. apps/web/src/features/connection/useConnectionCheck.ts：通信中・成功・失敗の状態と再試行。
-3. apps/web/src/infrastructure/api/api-client.ts：Axiosの共通設定と疎通API。
-4. apps/api/src/health/health.controller.ts：HTTPの入口と応答。
-5. packages/contracts/src/index.ts：両側で共有する応答の型。
+フロントの図と全ファイルの関係は[MVVM＋Atomic Design](frontend-architecture.md)を参照する。
 
-設定はapps/web/vite.config.ts、apps/api/src/config/server.config.ts、起動はapps/api/src/main.tsで確認できる。APIクライアントは共有型だけを信用せず、受け取ったJSONの最小形式も確認する。
+1. apps/web/src/app/main.ts・create-services.ts：Piniaと通信・保存・同期を一度だけ組み立てる。
+2. apps/web/src/features/list/views/pages/ArticleListPage.vue：表示部品とViewModelを結ぶ。
+3. apps/web/src/features/list/view-models/useArticleListViewModel.ts：一覧固有の状態・表示用データ・操作を管理する。
+4. apps/web/src/features/article-state/models/article-state.store.ts：共通の記事状態と未確定操作を持つ。
+5. apps/web/src/features/article-state/models/article-state-sync.service.ts：端末への保存と非同期送信を進める。
+6. apps/web/src/infrastructure/api/api-client.ts・storage/：Axios通信とIndexedDBを実装する。
+7. packages/contracts/src/：フロントとAPIで共有する入出力の型を定義する。
+
+設定はapps/web/vite.config.ts、apps/api/src/config/server.config.ts、APIの起動はapps/api/src/main.tsで確認できる。APIクライアントは共有型だけを信用せず、受け取ったJSONの最小形式も確認する。
 
 ## UI部品とスタイル
 
 PrimeVue 4.5.5と@primeuix/themes 2.0.3を使う。どちらもMITライセンスの版を固定した。テーマ付きのCard・Button・Messageを接続確認画面で使い、Buttonのloadingとdisabledで通信中の操作を示す。
 
-共通の緑色や部品の角丸などはapps/web/src/app/ui-theme.tsで定義し、main.tsでPrimeVueを初期化する。現在はライト表示に揃える。App.vueには画面固有の配置をstyle scopedとして置き、style.cssにはフォント・背景などの基本設定を残す。PrimeVue内部のCSSへ直接上書きする方式は基本にしない。
+共通の緑色や部品の角丸などはapps/web/src/app/ui-theme.tsで定義し、main.tsでPrimeVueを初期化する。現在はライト表示に揃える。Templateや各表示部品には画面固有の配置をstyle scopedとして置き、style.cssにはフォント・背景などの基本設定を残す。PrimeVue内部のCSSへ直接上書きする方式は基本にしない。
 
 ## コミット単位でのレビュー
 

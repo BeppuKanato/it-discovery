@@ -6,27 +6,13 @@ Issue #10で、全記事・気になる一覧をAPIに接続した。初回は20
 
 ## コードの依存関係
 
-矢印は、参照する相手を表す。
+Issue #11で構成をMVVM＋Atomic Designへ整理した。現在のフォルダ・部品の依存関係・状態の持ち主は[フロントの構成図](frontend-architecture.md)を参照する。
 
-```mermaid
-flowchart TD
-  App[App.vue 組み立て] --> Page[ArticleListPage.vue 画面]
-  App --> Client[ApiClient Axios通信]
-  Page --> List[useArticleList 一覧の状態と取得]
-  Page --> Pull[usePullToRefresh 引く操作]
-  Page --> Card[ArticleCard 記事の表示]
-  Card --> Source[SourceBadge 出典の表示]
-  List --> Port[ArticleListApi 取得の約束]
-  Client -. 実装する .-> Port
-  Client --> Validate[article-page-response 応答の形式確認]
-```
-
-- `features/list/components`は一覧の表示とイベントの受け渡しをする。
-- `features/list/controllers`は取得中・失敗・続き位置と、下に引く操作を管理する。DBやAxiosの実装は知らない。
-- `features/list/models/article-list-api.ts`は、一覧を取得する入力と戻り値を定める。テストでは仮の通信部品を渡せる。
-- `infrastructure/api`はAxiosによる通信と、受信JSONの形式確認をする。
-- 共通の`components`は記事と出典を表示する。登録や既読の変更は担当しない。
-- 色は`app/ui-theme.ts`、画面固有の配置は各Vueファイルの`style scoped`で管理する。共通操作部品にはPrimeVueを使う。
+- features/list/viewsは表示とイベント通知を行う。
+- features/list/view-modelsは取得条件・続き位置・表示用データ・操作窓口を持つ。
+- features/article-state/modelsは共有記事状態と保存・送信の手順を持つ。
+- infrastructureはAxios・IndexedDBなどの具体的な外部接続を実装する。
+- PrimeVueをAtomsとして使い、Molecules・Organisms・Templates・Pagesは必要なものだけ作る。
 
 ## 実行順序
 
