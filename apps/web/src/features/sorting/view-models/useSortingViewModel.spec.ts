@@ -131,4 +131,8 @@ describe('仕分けVM', () => {
     }finally{vi.useRealTimers();}
   });
 
+  it('起動時に取得済みの候補をそのまま開始し、二重取得しない',async()=>{
+    const {vm,getSortingCandidates}=setupSorting();await vm.initialize([article(7)]);expect(vm.currentArticle.value?.articleId).toBe(7);expect(getSortingCandidates).not.toHaveBeenCalled();
+  });
+
 });

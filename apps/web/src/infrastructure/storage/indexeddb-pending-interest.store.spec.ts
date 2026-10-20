@@ -16,7 +16,14 @@ describe('仕分け結果のIndexedDB保存', () => {
   it('同じ版の異なる内容を拒否し、壊れた端末記録も消さずに検出する', async () => {
     const name = crypto.randomUUID(); const store = new IndexedDBPendingInterestStore(name);
     await store.put({batchId,revision:1,articleIds:[1]}); await expect(store.put({batchId,revision:1,articleIds:[2]})).rejects.toThrow('矛盾');
-    const raw = await openDB(name,1); await raw.put('batches',{batchId,revision:'bad',articleIds:[1]}); raw.close();
+    const raw = await openDB(name); await raw.put('batches',{batchId,revision:'bad',articleIds:[1]}); raw.close();
     await expect(store.loadAll()).rejects.toThrow('確認できません'); await store.close();
   });
+  it('v1の仕分け記録を残して日次記録を追加し、再接続しても日付を保持する',async()=>{
+    const name=crypto.randomUUID();const old=await openDB(name,1,{upgrade(db){db.createObjectStore('batches',{keyPath:'batchId'});}});
+    await old.put('batches',{batchId,revision:2,articleIds:[1]});old.close();
+    const store=new IndexedDBPendingInterestStore(name);expect(await store.readDay()).toBeNull();await store.writeDay('2026-10-20');await store.close();
+    const again=new IndexedDBPendingInterestStore(name);expect(await again.readDay()).toBe('2026-10-20');expect((await again.loadAll())[0]?.revision).toBe(2);await again.close();
+  });
+
 });

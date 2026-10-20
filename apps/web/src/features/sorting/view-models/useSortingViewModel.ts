@@ -1,7 +1,7 @@
 import { InterestBatchError, type InterestBatchSyncModel } from '../models/interest-batch-sync.model';
 import type { PendingInterestBatch } from '../models/pending-interest';
 import { computed, reactive, readonly, ref, shallowRef } from 'vue';
-import type { ArticleStateValue } from '@it-discovery/contracts';
+import type { ArticleListItem, ArticleStateValue } from '@it-discovery/contracts';
 import type { PendingInterestModel } from '../models/pending-interest.model';
 import type { SortingModel } from '../models/sorting.model';
 import { SortingSession, type SortingDecision } from '../models/sorting-session';
@@ -64,9 +64,14 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
       loadController = null;
     }
   }
-  function initialize(): Promise<void> {
+  function initialize(initialCandidates?: readonly ArticleListItem[]): Promise<void> {
     if (initialized || disposed) return Promise.resolve();
-    initialized = true; return loadCandidates();
+    initialized = true;
+    if (initialCandidates) {
+      session.value = initialCandidates.length ? SortingSession.start(initialCandidates) : null;
+      return Promise.resolve();
+    }
+    return loadCandidates();
   }
   function decide(kind: SortingDecision): void {
     if (disposed || loading.value || finishStarted.value || storageError.value || !session.value) return;

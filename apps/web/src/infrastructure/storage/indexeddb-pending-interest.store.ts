@@ -1,13 +1,17 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { copyBatch, isPendingInterestBatch, sameBatch, type PendingInterestBatch, type PendingInterestStore } from '../../features/sorting/models/pending-interest';
-interface PendingDatabase extends DBSchema { batches: { key: string; value: PendingInterestBatch } }
+interface PendingDatabase extends DBSchema { batches: { key: string; value: PendingInterestBatch }; metadata: { key: string; value: unknown } }
 
 export class IndexedDBPendingInterestStore implements PendingInterestStore {
   private database: Promise<IDBPDatabase<PendingDatabase>> | null = null;
   constructor(private readonly name: string) {}
   private open(): Promise<IDBPDatabase<PendingDatabase>> {
-    if (!this.database) this.database = openDB<PendingDatabase>(this.name, 1, {
-      upgrade(db) { db.createObjectStore('batches', { keyPath: 'batchId' }); },
+    if (!this.database) this.database = openDB<PendingDatabase>(this.name, 2, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains('batches')) db.createObjectStore('batches', { keyPath: 'batchId' });
+        if (!db.objectStoreNames.contains('metadata')) db.createObjectStore('metadata');
+      },
+      blocking: () => { void this.close(); },
       blocked() { /* バージョン移行は接続元を閉じて再試行する。データを消して回避しない。 */ },
     }).catch(error => { this.database = null; throw error; });
     return this.database;
@@ -37,6 +41,16 @@ export class IndexedDBPendingInterestStore implements PendingInterestStore {
     const matches = !!current && sameBatch(current,batch);
     if (matches) await tx.store.delete(batch.batchId);
     await tx.done; return matches || !current;
+  }
+  async readDay(): Promise<string | null> {
+    const day = await (await this.open()).get('metadata','daily-sorting');
+    if (day === undefined) return null;
+    if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('日次記録が不正です。');
+    return day;
+  }
+  async writeDay(day: string): Promise<void> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('日次記録が不正です。');
+    await (await this.open()).put('metadata',day,'daily-sorting');
   }
   async close(): Promise<void> { const db = this.database; this.database = null; (await db)?.close(); }
 }

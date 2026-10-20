@@ -4,6 +4,7 @@ import Button from 'primevue/button';
 import Message from 'primevue/message';
 import Skeleton from 'primevue/skeleton';
 import ProgressBar from 'primevue/progressbar';
+import type { ArticleListItem } from '@it-discovery/contracts';
 import type { InterestBatchSyncModel } from '../../models/interest-batch-sync.model';
 import type { PendingInterestModel } from '../../models/pending-interest.model';
 import type { SortingModel } from '../../models/sorting.model';
@@ -13,12 +14,12 @@ import { useSortingViewModel } from '../../view-models/useSortingViewModel';
 import SortingLayout from '../templates/SortingLayout.vue';
 import SortingCard from '../organisms/SortingCard.vue';
 
-const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpeningModel; stateModel: ArticleStateModel; createPendingInterests: () => PendingInterestModel; batchSync: InterestBatchSyncModel }>();
+const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpeningModel; stateModel: ArticleStateModel; createPendingInterests: () => PendingInterestModel; batchSync: InterestBatchSyncModel; initialCandidates?: readonly ArticleListItem[] }>();
 const emit = defineEmits<{ exit: [] }>();
 const vm = useSortingViewModel(props.sortingModel, props.openingModel, props.stateModel, props.createPendingInterests(), props.batchSync);
 const { finishing, finished, finishError, missingIds, storageError, pendingWrites, loading, error, openingError, currentArticle, currentReadStatus, total, processedCount, interestedIds,
   complete, canUndo, canJudge, canNext, canExit, swipeOffset } = vm;
-onMounted(() => { void vm.initialize(); vm.setOnline(navigator.onLine); window.addEventListener('beforeunload', beforeUnload); window.addEventListener('online', online); window.addEventListener('offline', offline); });
+onMounted(() => { void vm.initialize(props.initialCandidates); vm.setOnline(navigator.onLine); window.addEventListener('beforeunload', beforeUnload); window.addEventListener('online', online); window.addEventListener('offline', offline); });
 onUnmounted(() => { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('online',online); window.removeEventListener('offline',offline); vm.dispose(); });
 watch(finished, value => { if (value) emit('exit'); });
 function exit(): void { if (canExit.value) void vm.finishSorting(); }
