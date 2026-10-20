@@ -1,6 +1,9 @@
+import { InterestBatchError } from '../../features/sorting/models/interest-batch-sync.model';
+import type { PendingInterestBatch } from '../../features/sorting/models/pending-interest';
+import { isInterestBatchResponse } from './interest-batch-response';
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
-import type { ArticlePageRequest, ArticlePageResponse, ArticleStateUpdateRequest, ArticleStateResponse, SortingCandidatesResponse, HealthResponse } from '@it-discovery/contracts';
+import type { ArticlePageRequest, ArticlePageResponse, ArticleStateUpdateRequest, ArticleStateResponse, SortingCandidatesResponse, InterestBatchResponse, HealthResponse } from '@it-discovery/contracts';
 import { isSortingCandidatesResponse } from './sorting-candidates-response';
 import { isArticlePageResponse } from './article-page-response';
 import { isArticleStateResponse } from './article-state-response';
@@ -23,6 +26,35 @@ export class ApiClient {
     const { data } = await this.http.get<unknown>('/sorting/candidates', { signal });
     if (!isSortingCandidatesResponse(data)) throw new Error('仕分け対象の応答を確認できませんでした。');
     return data;
+  }
+
+  async getInterestBatchResult(batch: PendingInterestBatch, signal?: AbortSignal): Promise<InterestBatchResponse | undefined> {
+    try {
+      const { data } = await this.http.get<unknown>(`/sorting/interest-batches/${batch.batchId}`, { signal });
+      return this.batchResponse(data,batch);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) return undefined;
+      throw this.batchError(error);
+    }
+  }
+  async saveInterestBatch(batch: PendingInterestBatch, signal?: AbortSignal): Promise<InterestBatchResponse> {
+    try {
+      const { data } = await this.http.put<unknown>(`/sorting/interest-batches/${batch.batchId}`,
+        { revision: batch.revision, articleIds: batch.articleIds }, { signal });
+      return this.batchResponse(data,batch);
+    } catch (error) { throw this.batchError(error); }
+  }
+  private batchResponse(data: unknown, batch: PendingInterestBatch): InterestBatchResponse {
+    if (!isInterestBatchResponse(data,batch)) throw new InterestBatchError('blocked','保存結果の回ID・版・内容を確認できません。端末記録は残しています。');
+    return data;
+  }
+  private batchError(error: unknown): InterestBatchError {
+    if (error instanceof InterestBatchError) return error;
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    const blocked = status !== undefined && status >= 400 && status < 500 && ![408,429].includes(status);
+    return new InterestBatchError(blocked ? 'blocked' : 'temporary',blocked
+      ? '登録が受け付けられませんでした。認証・接続先・保存結果をご確認ください。端末記録は残しています。'
+      : '登録の保存結果を確認できませんでした。端末記録を残して再試行します。');
   }
 
   async updateArticleState(articleId: number, request: ArticleStateUpdateRequest, signal?: AbortSignal): Promise<ArticleStateResponse> {
