@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ArticlePageResponse, ArticleStateValue } from '@it-discovery/contracts';
+import { ArticleOpeningModel } from '../../articles/models/article-opening.model';
 import { ArticleListModel } from '../models/article-list.model';
 import { ArticleStateModel } from '../../articles/models/article-state.model';
 import { ApiError } from '../../../infrastructure/api/api-error';
@@ -15,8 +16,9 @@ function deferred<T>() {
 function setup() {
   const getArticlePage = vi.fn().mockResolvedValue(page([2, 1], 'next'));
   const updateArticleState = vi.fn(); const getArticleState = vi.fn();
-  const vm = useArticleListViewModel(new ArticleListModel({ getArticlePage }), new ArticleStateModel({ updateArticleState, getArticleState }));
-  return { vm, getArticlePage, updateArticleState, getArticleState };
+  const open = vi.fn();
+  const vm = useArticleListViewModel(new ArticleListModel({ getArticlePage }), new ArticleStateModel({ updateArticleState, getArticleState }), new ArticleOpeningModel({ open }));
+  return { vm, getArticlePage, updateArticleState, getArticleState, open };
 }
 const saved = (state: Partial<ArticleStateValue> = {}) => ({ articleId: 1, state: { ...article(1).state, ...state } });
 
@@ -137,4 +139,58 @@ describe('一覧画面の状態と操作', () => {
     list.resolve(page([9])); save.resolve(saved({ pinned: true })); await Promise.all([refreshing, saving]);
     expect(vm.articles.value.map(a => a.articleId)).toEqual([2, 1]); expect(vm.articles.value[1]!.state.pinned).toBe(false);
   });
+  it('記事を同期的に開いて既読を表示し、保存を待たず一覧・フィルターを維持する', async () => {
+    const { vm, open, updateArticleState, getArticlePage } = setup(); await vm.initialize();
+    const wait = deferred<ReturnType<typeof saved>>(); updateArticleState.mockReturnValueOnce(wait.promise);
+    const saving = vm.openArticle(1);
+    expect(open).toHaveBeenCalledExactlyOnceWith('https://example.com/1');
+    const openedAt = vm.articles.value.find(a => a.articleId === 1)?.state.lastOpenedAt;
+    expect(openedAt).toBeTruthy(); expect(vm.readStatus.get(1)?.phase).toBe('saving');
+    expect(vm.articles.value.map(a => a.articleId)).toEqual([2, 1]); expect(vm.selectedKind.value).toBe('all');
+    expect(getArticlePage).toHaveBeenCalledTimes(1);
+    expect(updateArticleState.mock.calls[0]?.slice(0, 2)).toEqual([1, { change: { kind: 'opened', openedAt } }]);
+    expect(vm.articles.value.find(a => a.articleId === 1)?.state.interested).toBe(false);
+    wait.resolve(saved({ lastOpenedAt: openedAt! })); await saving; expect(vm.readStatus.has(1)).toBe(false);
+  });
+  it('開く操作が拒否されたら既読にも登録変更にもせず、理由を通知する', async () => {
+    const { vm, open, updateArticleState } = setup(); await vm.initialize(); open.mockImplementationOnce(() => { throw new Error('blocked'); });
+    await vm.openArticle(1); expect(updateArticleState).not.toHaveBeenCalled(); expect(vm.readStatus.size).toBe(0);
+    expect(vm.articles.value.find(a => a.articleId === 1)?.state.lastOpenedAt).toBeNull(); expect(vm.openingErrors.get(1)).toContain('記事を開けません');
+  });
+  it.each([403, 500, 404])('既読保存のHTTP %s失敗でも開いた表示を残し、手動でのみ同じ日時を保存し直す', async status => {
+    const { vm, open, updateArticleState } = setup(); await vm.initialize();
+    updateArticleState.mockRejectedValueOnce(new ApiError(status)); await vm.openArticle(1);
+    const failed = vm.readStatus.get(1)!; expect(failed.phase).toBe(status === 500 ? 'uncertain' : 'failed');
+    expect(vm.articles.value.length).toBe(2); expect(vm.articles.value.find(a => a.articleId === 1)?.state.lastOpenedAt).toBe(failed.openedAt);
+    expect(updateArticleState).toHaveBeenCalledOnce(); updateArticleState.mockResolvedValueOnce(saved({ lastOpenedAt: failed.openedAt }));
+    await vm.retryReadSave(1); expect(vm.readStatus.has(1)).toBe(false); expect(open).toHaveBeenCalledTimes(1);
+    expect(updateArticleState.mock.calls[1]?.[1]).toEqual({ change: { kind: 'opened', openedAt: failed.openedAt } });
+  });
+  it('古い一覧・ピン保存応答が開いた日時を戻さず、既読保存応答もピンを戻さない', async () => {
+    const { vm, updateArticleState, getArticlePage } = setup(); await vm.initialize();
+    const read = deferred<ReturnType<typeof saved>>(); const pin = deferred<ReturnType<typeof saved>>();
+    updateArticleState.mockReturnValueOnce(read.promise).mockReturnValueOnce(pin.promise);
+    const opening = vm.openArticle(1); const openedAt = vm.readStatus.get(1)!.openedAt; const pinning = vm.togglePin(1);
+    getArticlePage.mockResolvedValueOnce(page([1])); await vm.refreshArticles();
+    expect(vm.articles.value[0]?.state.lastOpenedAt).toBe(openedAt);
+    pin.resolve(saved({ pinned: true })); await pinning; expect(vm.articles.value[0]?.state.lastOpenedAt).toBe(openedAt);
+    read.resolve(saved({ lastOpenedAt: openedAt })); await opening;
+    expect(vm.articles.value[0]?.state.pinned).toBe(true); expect(vm.articles.value[0]?.state.interested).toBe(false);
+  });
+  it('連続で記事を開いても古い保存結果で最新の失敗状態を消さない', async () => {
+    const { vm, updateArticleState } = setup(); await vm.initialize();
+    const old = deferred<ReturnType<typeof saved>>(); updateArticleState.mockReturnValueOnce(old.promise).mockRejectedValueOnce(new ApiError(500));
+    const first = vm.openArticle(1); const oldSignal = updateArticleState.mock.calls[0]?.[2] as AbortSignal;
+    await vm.openArticle(1); expect(oldSignal.aborted).toBe(true); expect(vm.readStatus.get(1)?.phase).toBe('uncertain');
+    old.resolve(saved({ lastOpenedAt: vm.readStatus.get(1)!.openedAt })); await first;
+    expect(vm.readStatus.get(1)?.phase).toBe('uncertain');
+  });
+  it('終了時は既読の通信を中止し、古い失敗を画面へ追加せず、新しいタブも作らない', async () => {
+    const { vm, open, updateArticleState } = setup(); await vm.initialize(); const wait = deferred<ReturnType<typeof saved>>();
+    updateArticleState.mockReturnValueOnce(wait.promise); const pending = vm.openArticle(1);
+    const signal = updateArticleState.mock.calls[0]?.[2] as AbortSignal; vm.dispose(); expect(signal.aborted).toBe(true);
+    wait.reject(new ApiError()); await pending; expect(vm.readStatus.get(1)?.phase).toBe('saving');
+    await vm.openArticle(1); await vm.retryReadSave(1); expect(open).toHaveBeenCalledOnce(); expect(updateArticleState).toHaveBeenCalledOnce();
+  });
+
 });

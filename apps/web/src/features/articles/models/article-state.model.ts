@@ -18,7 +18,7 @@ export class ArticleStateModel {
     return this.save(articleId, { change: { kind: field, value } }, signal);
   }
 
-  // 元記事を開く処理との接続は後続作業。日時を指定する直接保存だけを用意する。
+  // 受け付けた開く操作の日時を保存する。外部への移動はこの応答を待たせない。
   recordOpened(articleId: number, openedAt: string, signal?: AbortSignal): Promise<ArticleStateValue> {
     return this.save(articleId, { change: { kind: 'opened', openedAt } }, signal);
   }

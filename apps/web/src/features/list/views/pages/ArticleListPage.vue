@@ -4,6 +4,7 @@ import Message from 'primevue/message';
 import type { ArticleListKind } from '@it-discovery/contracts';
 import { useArticleListViewModel } from '../../view-models/useArticleListViewModel';
 import type { ArticleListModel } from '../../models/article-list.model';
+import type { ArticleOpeningModel } from '../../../articles/models/article-opening.model';
 import type { ArticleStateModel } from '../../../articles/models/article-state.model';
 import type { PullGestureInput } from '../../models/pull-to-refresh-gesture';
 import ArticleListLayout from '../templates/ArticleListLayout.vue';
@@ -11,10 +12,10 @@ import ArticleListToolbar from '../organisms/ArticleListToolbar.vue';
 import ArticleListContent from '../organisms/ArticleListContent.vue';
 
 // Pageは表示開始・終了とブラウザ入力をVMへ伝える。初回取得はAppでなくここから始める。
-const props = defineProps<{ listModel: ArticleListModel; stateModel: ArticleStateModel }>();
-const vm = useArticleListViewModel(props.listModel, props.stateModel);
-const { articles, selectedKind, hasMore, listLoading, listError, notice, savingByArticle, saveErrors,
-  refreshArticles, loadMoreArticles, retryArticleLoad, togglePin, toggleInterest, retryStateCheck,
+const props = defineProps<{ listModel: ArticleListModel; stateModel: ArticleStateModel; openingModel: ArticleOpeningModel }>();
+const vm = useArticleListViewModel(props.listModel, props.stateModel, props.openingModel);
+const { articles, selectedKind, hasMore, listLoading, listError, notice, savingByArticle, readStatus, openingErrors, saveErrors,
+  refreshArticles, loadMoreArticles, retryArticleLoad, togglePin, toggleInterest, retryStateCheck, openArticle, retryReadSave,
   pullDistance, pullReady, finishPull, cancelPull } = vm;
 onMounted(() => { void vm.initialize(); });
 onUnmounted(() => { vm.dispose(); });
@@ -63,8 +64,8 @@ function touchMove(event: TouchEvent): void {
       <span v-else-if="pullDistance > 0">{{ pullReady ? '離して更新' : '↓ 下に引いて更新' }}</span>
     </div>
     <ArticleListContent :articles="articles" :kind="selectedKind" :initial-loading="listLoading === 'initial'"
-      :loading="listLoading !== null" :has-more="hasMore" :error="listError?.message ?? null" :saving-by-article="savingByArticle" :save-errors="saveErrors"
-      @pin="togglePin" @interest="toggleInterest" @more="loadMoreArticles" @retry="retryArticleLoad" @check-state="retryStateCheck" />
+      :loading="listLoading !== null" :has-more="hasMore" :error="listError?.message ?? null" :opening-errors="openingErrors" :read-status="readStatus" :saving-by-article="savingByArticle" :save-errors="saveErrors"
+      @open="openArticle" @retry-read="retryReadSave" @pin="togglePin" @interest="toggleInterest" @more="loadMoreArticles" @retry="retryArticleLoad" @check-state="retryStateCheck" />
     <template #footer><p class="page-footnote">小さな発見を、毎日に。</p></template>
   </ArticleListLayout>
 </template>

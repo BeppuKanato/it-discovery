@@ -5,9 +5,9 @@ import PrimeVue from 'primevue/config';
 import ArticleCard from './ArticleCard.vue';
 import { article } from '../../test/article-fixture';
 
-async function render(pending?: 'pinned' | 'interested' | 'checking') {
-  const item = article(1); item.state.pinned = true; item.state.interested = true;
-  const app = createSSRApp({ render: () => h(ArticleCard, { article: item, editable: true, pending }) });
+async function render(pending?: 'pinned' | 'interested' | 'checking', readStatus?: 'saving' | 'failed' | 'uncertain') {
+  const item = article(1); item.state.lastOpenedAt = readStatus ? '2026-10-20T00:00:00.000Z' : null; item.state.pinned = true; item.state.interested = true;
+  const app = createSSRApp({ render: () => h(ArticleCard, { article: item, editable: true, pending, readStatus }) });
   app.use(PrimeVue);
   return renderToString(app);
 }
@@ -33,4 +33,14 @@ describe('記事ボタンの保存待ち表示', () => {
     expect(html).not.toContain('clip-path='); expect(html).not.toMatch(/\sdisabled(?:=|\s|>)/);
     expect(button(html, 'ピン止めを解除')).toContain('aria-pressed="true"');
   });
+  it('記事を開くキーボード操作可能なリンクを公開し、別タブを案内する', async () => {
+    const html = await render();
+    expect(html).toMatch(/<a[^>]*href="https:\/\/example.com\/1"/);
+    expect(html).toContain('target="_blank"'); expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('記事1（別タブで開く）');
+  });
+  it.each([['saving', '既読・保存中'], ['failed', '既読・保存未確認'], ['uncertain', '既読・保存未確認']] as const)('既読の%sを確定済みと区別して表示する', async (phase, label) => {
+    expect(await render(undefined, phase)).toContain(label);
+  });
+
 });
