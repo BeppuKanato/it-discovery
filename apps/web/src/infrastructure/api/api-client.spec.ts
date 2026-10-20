@@ -57,3 +57,24 @@ describe('記事の状態保存と現在状態の取得', () => {
     await expect(api.getArticleState(1)).rejects.toThrow();
   });
 });
+
+describe('仕分け対象のAPI通信', () => {
+  beforeEach(() => { get.mockReset(); put.mockReset(); create.mockReturnValue({ get, put }); });
+  it('条件やページングを足さず、中止シグナル付きで対象を取得する', async () => {
+    const response = { articles: [article(2), article(1)] }; const signal = new AbortController().signal;
+    get.mockResolvedValue({ data: response }); expect(await new ApiClient('/api').getSortingCandidates(signal)).toEqual(response);
+    expect(get).toHaveBeenCalledExactlyOnceWith('/sorting/candidates', { signal }); expect(put).not.toHaveBeenCalled();
+  });
+  it('0件を正常応答として返す', async () => {
+    get.mockResolvedValue({ data: { articles: [] } }); expect(await new ApiClient('/api').getSortingCandidates()).toEqual({ articles: [] });
+  });
+  it.each([
+    { articles: null }, { articles: Array.from({ length: 11 }, (_, i) => article(i + 1)) },
+    { articles: [article(1), article(1)] }, { articles: [{ ...article(1), state: {} }] },
+    { articles: [{ ...article(1), state: { ...article(1).state, interested: true } }] },
+    { articles: [{ ...article(1), state: { ...article(1).state, pinned: true } }] },
+    { articles: [{ ...article(1), state: { ...article(1).state, lastOpenedAt: '2026-10-20T00:00:00.000Z' } }] },
+  ])('不正・対象条件外の応答は仕分けを開始させない', async data => {
+    get.mockResolvedValue({ data }); await expect(new ApiClient('/api').getSortingCandidates()).rejects.toThrow('仕分け対象');
+  });
+});
