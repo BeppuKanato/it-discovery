@@ -19,6 +19,7 @@ describe('仕分け対象と一括登録の判断', () => {
       transaction: jest.fn((work: () => unknown) => work()) as jest.Mocked<ArticleRepository>['transaction'],
       findById: jest.fn((id: number): StoredArticle | undefined => makeArticle(id)),
       findByIds: jest.fn((ids: number[]) => ids.map(makeArticle).reverse()), registerInterests: jest.fn(),
+      deleteExpired: jest.fn(), countProtected: jest.fn(), trimToLimit: jest.fn(),
       findByIdentity: jest.fn(), findPage: jest.fn(), findSortingCandidates: jest.fn().mockReturnValue([]),
       insert: jest.fn(), updateContent: jest.fn(),
       updateState: jest.fn((id, patch) => ({ ...makeArticle(id), state: { ...makeArticle(id).state, ...patch } })),

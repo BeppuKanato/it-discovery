@@ -26,6 +26,12 @@ export abstract class ArticleRepository {
   abstract findPage(query: ArticlePageQuery): ArticleListEntry[];
   // 未読・気になる未登録・ピンなしを取得日時とIDの降順で取得する。
   abstract findSortingCandidates(limit: number): ArticleListEntry[];
+  // 未読・未保護で期限より古い記事と状態を削除する。
+  abstract deleteExpired(before: Date): number;
+  // 保護記事数を数える。
+  abstract countProtected(): number;
+  // 上限超過分を未保護の未読→既読の優先順で削除する。
+  abstract trimToLimit(maximum: number): number;
   // 指定された状態の項目だけを保存する。
   abstract updateState(articleId: number, patch: Partial<ArticleState>): StoredArticle | undefined;
 }
