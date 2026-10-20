@@ -37,6 +37,7 @@ http://127.0.0.1:5173/ を開き、記事一覧を確認します。DBが空の�
 npm run typecheck
 npm run test
 npm run build
+npm run test:integration
 ```
 
 PRの作成・更新とmainの更新でも、依存の新規導入から同じ確認を自動実行します。[CIの構成と確認対象](docs/ci.md)を参照してください。
@@ -44,6 +45,10 @@ PRの作成・更新とmainの更新でも、依存の新規導入から同じ�
 [開発・設定・ビルド手順](docs/development.md)に、環境変数、接続先変更、各コマンド、コードを読む順序を記載しています。現在は記事一覧と気になる・ピン操作を確認できます。一覧ページの表示開始で取得し、起動時の一覧変更の再送は行いません。
 
 ## 設計資料
+
+- [結合確認と残る確認](docs/integration-status.md)：HTTP・端末保存・DB再起動の再現コマンドと公開前の未確認事項。
+- [公開構成の提案（未決定）](docs/hosting-policy.md)：配信・本人制限・費用・バックアップの具体案。
+- [Dockerの起動・更新・停止](docs/docker.md)：永続volumeと再作成確認。
 
 - [定期収集の構成](docs/collection-job.md)：時刻設定・失敗継続・重複防止・停止。
 - [記事の保持と追加](docs/article-retention.md)：期限・上限・保護・transaction。
