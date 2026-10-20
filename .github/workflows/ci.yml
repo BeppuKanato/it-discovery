@@ -30,3 +30,15 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build backend image
+        run: docker build --tag it-discovery-api:check .
+      - name: Check recreation with persistent SQLite
+        run: bash scripts/check-docker-persistence.sh it-discovery-api:check
