@@ -182,8 +182,8 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 | PendingInterestBatch | webの保存契約とinfrastructure/storage/ | 端末内のID集合と版を表す。通信形式とは別に扱う |
 | StartupCoordinator（未実装） | 仕分け導入時に検討 | 仕分けの残存結果と日次判定の統合 |
 | ListController | web/src/features/list/view-models/useArticleListViewModel.ts | 一覧取得・更新・追加と操作の進行を担当する |
-| SortingController | web/src/features/sorting/useSorting.ts | 対象取得・手元の判断・保存依頼を進める |
-| SortingSession・SortingDecision | web/src/features/sorting/sorting-session.ts | その回のカード・判断履歴・取り消しを扱う |
+| SortingController | web/src/features/sorting/view-models/useSortingViewModel.ts | 対象取得・手元の判断・既読保存を進める |
+| SortingSession・SortingDecision | web/src/features/sorting/models/sorting-session.ts | その回の固定カード・判断履歴・取り消しを扱う |
 | 一覧の保存操作 | web/src/features/list/view-models/useArticleListViewModel.ts | 保存中の制限・結果反映・現在状態の確認 |
 | ArticleOpeningService | web/src/services/article-opening.service.ts | 外部を開き、既読の保存を依頼する |
 | InterestResultSync | web/src/services/interest-result-sync.ts | 途中保存・終了送信・起動時再送を担当する |
@@ -273,3 +273,5 @@ Issue #1は開発全体の管理用なので、Issueを発行しただけでは�
 - [idb：IndexedDBのPromiseラッパー](https://github.com/jakearchibald/idb)
 - [NestのValidationPipe](https://docs.nestjs.com/techniques/validation)
 - [Nestの定期実行](https://docs.nestjs.com/techniques/task-scheduling)
+
+手動の仕分けはIssue #13で実装した。[構成・状態の持ち主と実行順序](sorting-ui.md)を参照。仮選択の端末保存・終了時登録は後続Issueのため、この段階では保存したように見せず、仮選択がある間の終了を制限する。

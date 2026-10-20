@@ -22,7 +22,7 @@ flowchart TB
   State --> API[ApiClient]
 ```
 
-ブラウザ操作はinfrastructure/browserに閉じ込め、ModelはURLの検証と受付時刻を扱う。組み立てはapp/create-application-models.ts。Modelは表示状態を持たず、同じ開く処理と記事状態Modelを将来の仕分けVMからも使える。仕分け画面自体は未実装。
+ブラウザ操作はinfrastructure/browserに閉じ込め、ModelはURLの検証と受付時刻を扱う。組み立てはapp/create-application-models.ts。Modelは表示状態を持たず、同じ開く処理と記事状態Modelを将来の仕分けVMからも使える。[仕分け画面](sorting-ui.md)でも同じModelを使用する。
 
 ## 実行順序
 
@@ -73,5 +73,7 @@ sequenceDiagram
 ## 確認範囲
 
 Modelとブラウザ操作の代替によるテストで不正URL・作成拒否・参照切断・例外・時刻を確認。VMのテストで移動と保存の順序、登録値を変えないこと、失敗後の手動再試行、同時保存、遅い応答・終了を確認する。SSRでリンクと既読保存の表示を確認する。
+
+仕分けでも同じカードを既読表示にし、保存を待たず外部へ移動する。カードの位置・判断履歴は変更せず、「次へ」で進める。
 
 実ブラウザのポップアップ設定・外部復帰時のスクロール・iPhone/Safariの操作確認は未実施。代替ブラウザ操作によるテストは、この実機確認を代わりに保証するものではない。

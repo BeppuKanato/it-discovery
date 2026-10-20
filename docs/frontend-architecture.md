@@ -2,7 +2,7 @@
 
 [README](../README.md) · [一覧操作](article-list-state.md) · [技術構成](architecture.md)
 
-2026-10-20の一覧整理後の実装を説明する。ページの表示開始から取得し、保存は直接APIへ送る。一覧の理解に永続キューや起動時同期の知識は必要ない。仕分け画面とその端末保存は未実装で、今回の対象外。
+2026-10-20の一覧整理後の実装を説明する。ページの表示開始から取得し、保存は直接APIへ送る。一覧の理解に永続キューや起動時同期の知識は必要ない。手動の仕分け画面は[別機能](sorting-ui.md)として追加した。仕分けの端末保存・一括登録は未接続。
 
 ## 役割とファイル
 
@@ -129,3 +129,7 @@ PageはVMとの接続、Templateはslotの配置、Organismは画面領域、Mol
 5. [組み立て](../apps/web/src/app/create-application-models.ts)：Modelへ何を渡すか。
 
 元記事への遷移と既読保存は[記事を開く共通処理](article-opening.md)を参照。リンクのイベント→VM.openArticle→ArticleOpeningModel.open→受付時刻の表示→ArticleStateModel.recordOpenedの順で進み、外部への移動を保存応答まで待たせない。
+
+## 仕分け画面
+
+一覧の開始イベントをAppが受け、SortingPageへ切り替える。Appは画面を選ぶだけで、仕分けの取得・判断は行わない。[仕分けの責任分担・状態・実行順序](sorting-ui.md)を参照。判断はSortingSessionという値をVMがrefに一つ持ち、変更後の値へ置き換える。取得・履歴・ジェスチャー・既読を分け、一覧のVMや記事配列を共有しない。

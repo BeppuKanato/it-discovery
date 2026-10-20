@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
-import type { ArticlePageRequest, ArticlePageResponse, ArticleStateUpdateRequest, ArticleStateResponse, HealthResponse } from '@it-discovery/contracts';
+import type { ArticlePageRequest, ArticlePageResponse, ArticleStateUpdateRequest, ArticleStateResponse, SortingCandidatesResponse, HealthResponse } from '@it-discovery/contracts';
+import { isSortingCandidatesResponse } from './sorting-candidates-response';
 import { isArticlePageResponse } from './article-page-response';
 import { isArticleStateResponse } from './article-state-response';
 import { ApiError } from './api-error';
@@ -15,6 +16,12 @@ export class ApiClient {
   async getArticlePage(request: ArticlePageRequest, signal?: AbortSignal): Promise<ArticlePageResponse> {
     const { data } = await this.http.get<unknown>('/articles', { params: request, signal });
     if (!isArticlePageResponse(data, request.cursor)) throw new Error('一覧の応答を確認できませんでした。');
+    return data;
+  }
+
+  async getSortingCandidates(signal?: AbortSignal): Promise<SortingCandidatesResponse> {
+    const { data } = await this.http.get<unknown>('/sorting/candidates', { signal });
+    if (!isSortingCandidatesResponse(data)) throw new Error('仕分け対象の応答を確認できませんでした。');
     return data;
   }
 
