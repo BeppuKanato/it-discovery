@@ -1,3 +1,5 @@
+import { memoryPendingStore } from '../../../../test/pending-interest-fixture';
+import { PendingInterestModel } from '../../models/pending-interest.model';
 import { describe, expect, it, vi } from 'vitest';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from '@vue/server-renderer';
@@ -17,8 +19,9 @@ function fixture(ids = [2,1]) {
   const openingModel = new ArticleOpeningModel({ open: vi.fn() });
   const updateArticleState = vi.fn();
   const stateModel = new ArticleStateModel({ updateArticleState, getArticleState: vi.fn() });
-  const vm = useSortingViewModel(sortingModel, openingModel, stateModel);
-  return { vm, props: { sortingModel, openingModel, stateModel }, updateArticleState };
+  const createPendingInterests = () => new PendingInterestModel(memoryPendingStore());
+  const vm = useSortingViewModel(sortingModel, openingModel, stateModel, createPendingInterests());
+  return { vm, props: { sortingModel, openingModel, stateModel, createPendingInterests }, updateArticleState };
 }
 async function render(f: ReturnType<typeof fixture>) {
   getVm.mockReturnValue(f.vm);

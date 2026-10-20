@@ -16,5 +16,5 @@ async function navigate(target: 'list' | 'sorting'): Promise<void> {
 
 <template>
   <ArticleListPage v-if="screen === 'list'" :list-model="models.articleList" :state-model="models.articleState" :opening-model="models.articleOpening" @start-sorting="navigate('sorting')" />
-  <SortingPage v-else :sorting-model="models.sorting" :opening-model="models.articleOpening" :state-model="models.articleState" @exit="navigate('list')" />
+  <SortingPage v-else :create-pending-interests="models.createPendingInterests" :sorting-model="models.sorting" :opening-model="models.articleOpening" :state-model="models.articleState" @exit="navigate('list')" />
 </template>

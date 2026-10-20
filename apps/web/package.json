@@ -14,12 +14,14 @@
     "@it-discovery/contracts": "0.1.0",
     "@primeuix/themes": "2.0.3",
     "axios": "1.20.0",
+    "idb": "8.0.4",
     "primevue": "4.5.5",
     "vue": "3.5.43"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@vitejs/plugin-vue": "6.0.9",
+    "fake-indexeddb": "6.2.5",
     "vite": "8.3.4",
     "vitest": "5.0.3",
     "vue-tsc": "3.3.12"

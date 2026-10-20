@@ -1,3 +1,5 @@
+import { memoryPendingStore } from '../../../test/pending-interest-fixture';
+import { PendingInterestModel } from '../models/pending-interest.model';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArticleStateResponse, SortingCandidatesResponse } from '@it-discovery/contracts';
 import { article } from '../../../test/article-fixture';
@@ -9,11 +11,11 @@ import { useSortingViewModel } from './useSortingViewModel';
 
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void;
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; }
-function setupSorting(ids = [3, 2, 1]) {
+function setupSorting(ids = [3, 2, 1], store = memoryPendingStore()) {
   const getSortingCandidates = vi.fn().mockResolvedValue({ articles: ids.map(article) }); const open = vi.fn();
   const updateArticleState = vi.fn(); const getArticleState = vi.fn();
   const models = { sorting: new SortingModel({ getSortingCandidates }), opening: new ArticleOpeningModel({ open }), state: new ArticleStateModel({ updateArticleState, getArticleState }) };
-  const vm = useSortingViewModel(models.sorting, models.opening, models.state);
+  const vm = useSortingViewModel(models.sorting, models.opening, models.state, new PendingInterestModel(store));
   return { vm, models, getSortingCandidates, open, updateArticleState, getArticleState };
 }
 function saved(openedAt: string): ArticleStateResponse { return { articleId: 3, state: { ...article(3).state, lastOpenedAt: openedAt } }; }
@@ -91,4 +93,14 @@ describe('仕分けVM', () => {
     expect((active.updateArticleState.mock.calls[0]?.[2] as AbortSignal).aborted).toBe(true); save.resolve(saved(openedAt)); await saving;
     active.vm.decide('read'); active.vm.undo(); expect(active.vm.processedCount.value).toBe(0);
   });
+  it('端末保存を待たず次のカードへ進め、失敗時は最新の選択を保って判断・戻すを止める', async () => {
+    const store = memoryPendingStore(); const put = vi.spyOn(store,'put').mockRejectedValueOnce(new Error('quota'));
+    const { vm } = setupSorting([3,2,1],store); await vm.initialize(); vm.decide('interested');
+    expect(vm.currentArticle.value?.articleId).toBe(2); expect(await vm.prepareExit()).toBe(false);
+    expect(vm.storageError.value).toBeTruthy(); expect(vm.canUndo.value).toBe(false); expect(vm.canJudge.value).toBe(false);
+    vm.decide('skipped'); vm.undo(); expect(vm.interestedIds.value).toEqual([3]); expect(vm.currentArticle.value?.articleId).toBe(2);
+    await vm.retryPending(); expect(vm.storageError.value).toBeNull(); expect(vm.canUndo.value).toBe(true); expect(put).toHaveBeenCalledTimes(2);
+    vm.undo(); expect(await vm.prepareExit()).toBe(true); expect((await store.loadAll())[0]?.articleIds).toEqual([]);
+  });
+
 });

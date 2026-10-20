@@ -4,6 +4,7 @@ import Button from 'primevue/button';
 import Message from 'primevue/message';
 import Skeleton from 'primevue/skeleton';
 import ProgressBar from 'primevue/progressbar';
+import type { PendingInterestModel } from '../../models/pending-interest.model';
 import type { SortingModel } from '../../models/sorting.model';
 import type { ArticleOpeningModel } from '../../../articles/models/article-opening.model';
 import type { ArticleStateModel } from '../../../articles/models/article-state.model';
@@ -11,17 +12,17 @@ import { useSortingViewModel } from '../../view-models/useSortingViewModel';
 import SortingLayout from '../templates/SortingLayout.vue';
 import SortingCard from '../organisms/SortingCard.vue';
 
-const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpeningModel; stateModel: ArticleStateModel }>();
+const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpeningModel; stateModel: ArticleStateModel; createPendingInterests: () => PendingInterestModel }>();
 const emit = defineEmits<{ exit: [] }>();
-const vm = useSortingViewModel(props.sortingModel, props.openingModel, props.stateModel);
-const { loading, error, openingError, currentArticle, currentReadStatus, total, processedCount, interestedIds,
+const vm = useSortingViewModel(props.sortingModel, props.openingModel, props.stateModel, props.createPendingInterests());
+const { storageError, pendingWrites, loading, error, openingError, currentArticle, currentReadStatus, total, processedCount, interestedIds,
   complete, canUndo, canJudge, canNext, canExit, swipeOffset } = vm;
 onMounted(() => { void vm.initialize(); window.addEventListener('beforeunload', beforeUnload); });
 onUnmounted(() => { window.removeEventListener('beforeunload', beforeUnload); vm.dispose(); });
-function exit(): void { if (canExit.value) emit('exit'); }
+async function exit(): Promise<void> { if (canExit.value && await vm.prepareExit()) emit('exit'); }
 function beforeUnload(event: BeforeUnloadEvent): void {
   // 仮選択を保護する補助。ブラウザの強制終了やOSによる終了までは防げない。
-  if (interestedIds.value.length) { event.preventDefault(); event.returnValue = ''; }
+  if (pendingWrites.value || storageError.value) { event.preventDefault(); event.returnValue = ''; }
 }
 </script>
 
@@ -47,6 +48,9 @@ function beforeUnload(event: BeforeUnloadEvent): void {
       <Button type="button" label="一覧へ戻る" outlined @click="exit" />
     </section>
     <template v-else>
+      <Message v-if="storageError" severity="error" :closable="false" class="status">
+        {{ storageError }}<Button type="button" label="端末保存を再試行" text :disabled="pendingWrites > 0" @click="vm.retryPending" />
+      </Message>
       <div class="progress" role="status"><span>{{ processedCount }} / {{ total }} 件を判断</span><span>気になる {{ interestedIds.length }} 件を仮選択</span></div>
       <ProgressBar :value="processedCount / total * 100" :show-value="false" aria-label="仕分けの進行" class="progress-bar" />
       <template v-if="currentArticle">
@@ -76,7 +80,7 @@ function beforeUnload(event: BeforeUnloadEvent): void {
         気になるの保存は現在利用できません。選択はこの画面内に保持しています。保存を伴う終了はできません。
       </Message>
     </template>
-    <template #footer><p class="footnote">選択はまだ保存されていません。画面を閉じると失われます。</p></template>
+    <template #footer><p class="footnote">{{ storageError ? '端末保存に失敗しています。閉じると最新の変更が失われる場合があります。' : pendingWrites ? '気になるを端末へ保存しています…' : '保存済みの気になるは端末に残ります。カード位置と履歴は再開しません。' }}</p></template>
   </SortingLayout>
 </template>
 <style scoped>
