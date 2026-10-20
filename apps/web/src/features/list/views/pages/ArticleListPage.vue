@@ -13,6 +13,7 @@ import ArticleListContent from '../organisms/ArticleListContent.vue';
 
 // Pageは表示開始・終了とブラウザ入力をVMへ伝える。初回取得はAppでなくここから始める。
 const props = defineProps<{ listModel: ArticleListModel; stateModel: ArticleStateModel; openingModel: ArticleOpeningModel }>();
+const emit = defineEmits<{ startSorting: [] }>();
 const vm = useArticleListViewModel(props.listModel, props.stateModel, props.openingModel);
 const { articles, selectedKind, hasMore, listLoading, listError, notice, savingByArticle, readStatus, openingErrors, saveErrors,
   refreshArticles, loadMoreArticles, retryArticleLoad, togglePin, toggleInterest, retryStateCheck, openArticle, retryReadSave,
@@ -53,7 +54,7 @@ function touchMove(event: TouchEvent): void {
     </template>
     <template #toolbar>
       <ArticleListToolbar :kind="selectedKind" :count="articles.length" :refreshing="listLoading === 'refresh'"
-        :disabled="false" :busy="listLoading === 'initial' || listLoading === 'refresh'" @select="selectKind" @refresh="refreshArticles" />
+        :disabled="false" :busy="listLoading === 'initial' || listLoading === 'refresh'" @start-sorting="emit('startSorting')" @select="selectKind" @refresh="refreshArticles" />
     </template>
     <template #status>
       <Message v-if="notice" severity="info" :closable="false" role="status">{{ notice }}</Message>
