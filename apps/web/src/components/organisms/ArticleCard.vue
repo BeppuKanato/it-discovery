@@ -8,9 +8,9 @@ import { articleCardTokens } from '../../app/ui-theme';
 import SourceBadge from '../molecules/SourceBadge.vue';
 
 // definePropsは親から受け取る値の型を宣言するVueの機能。article自体はこの部品で変更しない。
-const props = defineProps<{ article: ArticleListItem; editable?: boolean; actionsDisabled?: boolean; pending?: 'pinned' | 'interested' | 'checking' }>();
+const props = defineProps<{ article: ArticleListItem; editable?: boolean; actionsDisabled?: boolean; readStatus?: 'saving' | 'failed' | 'uncertain'; pending?: 'pinned' | 'interested' | 'checking' }>();
 // defineEmitsは親へ通知するイベントの型を宣言する。DB保存は親へ任せ、この部品は表示を担当する。
-const emit = defineEmits<{ interest: []; pin: [] }>();
+const emit = defineEmits<{ open: []; interest: []; pin: [] }>();
 // useIdは部品ごとに異なるIDを作る。同じカードを複数並べても見出しのIDが衝突しない。
 const titleId = useId();
 // refは値の変化を画面へ反映する状態。scriptでは.value、templateでは値をそのまま参照できる。
@@ -62,7 +62,8 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
             </Button>
             <Tag v-else-if="article.state.pinned" value="ピン止め" severity="secondary" rounded class="pin-state" />
             <div ref="copy" class="article-copy">
-              <h2 :id="titleId">{{ article.title }}</h2>
+              <h2 :id="titleId"><a class="article-link" :href="article.url" target="_blank" rel="noopener noreferrer"
+                :aria-label="`${article.title}（別タブで開く）`" @click.prevent="emit('open')">{{ article.title }}</a></h2>
               <!-- v-ifは条件付き描画。概要がなければ段落そのものを作らない。 -->
               <p v-if="article.description" class="summary">{{ article.description }}</p>
             </div>
@@ -71,7 +72,7 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
               <Button
                 v-if="canExpand" type="button" text size="small" class="expand-button"
                 :label="expanded ? '短く表示' : '続きを表示'" :aria-expanded="expanded"
-                @click="expanded = !expanded"
+                @click.stop="expanded = !expanded"
               />
               <span v-else />
               <SourceBadge :source="article.source" />
@@ -86,7 +87,7 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
             <time v-if="article.publishedAt" :datetime="article.publishedAt">公開 {{ date.format(new Date(article.publishedAt)) }}</time>
           </div>
           <div class="states">
-            <span v-if="article.state.lastOpenedAt" class="read-state">既読</span>
+            <span v-if="article.state.lastOpenedAt" class="read-state" role="status">{{ readStatus === 'saving' ? '既読・保存中' : readStatus ? '既読・保存未確認' : '既読' }}</span>
             <Button v-if="editable" type="button" size="small" rounded :text="!article.state.interested || pending === 'interested' || pending === 'checking'"
               :label="article.state.interested ? '気になる登録済み' : '気になる'"
               :aria-label="pending === 'checking' ? '気になるの状態を確認中' : pending === 'interested' ? '気になるの変更を保存中' : article.state.interested ? '気になるを解除' : '気になるに登録'" :aria-busy="pending === 'interested' || pending === 'checking'" :aria-pressed="article.state.interested"
@@ -110,16 +111,21 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
 .thumbnail-frame { padding: 7px; background: linear-gradient(135deg, var(--p-discovery-frame-start), var(--p-discovery-frame-end)); }
 .thumbnail { position: relative; display: flex; flex-direction: column; min-height: 244px; padding: 27px 18px 12px; border-radius: 15px; background: var(--p-discovery-paper); }
 .pin-state { position: absolute; top: 10px; left: 12px; font-size: 10px; }
-.pin-action { position: absolute; top: 5px; left: 7px; width: 44px; height: 44px; color: var(--p-discovery-muted); }
+.pin-action { z-index: 2; position: absolute; top: 5px; left: 7px; width: 44px; height: 44px; color: var(--p-discovery-muted); }
 .pin-action.selected { color: var(--p-primary-color); background: var(--p-primary-50); }
 /* 部分着色は進捗率ではなく保存待ちの印。位置・大きさを変えず、スピナーも使わない。 */
 .pin-action.pending, .interest-action.pending { color: var(--p-primary-color); background: var(--p-primary-50); opacity: 1; }
 .interest-action { min-height: 38px; font-size: 10px; padding: 7px 10px; }
 .article-copy { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 161px; padding: 8px 3px 16px; text-align: center; }
+.article-link { color: inherit; text-decoration: none; }
+/* タイトルのリンクをサムネ領域まで広げる。ピンと文章展開の操作はその手前に置く。 */
+.article-link::after { content: ''; position: absolute; inset: 0; border-radius: 15px; }
+.article-link:focus-visible { outline: none; }
+.article-link:focus-visible::after { outline: 2px solid var(--p-primary-color); outline-offset: -3px; }
 h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; margin: 0; color: var(--p-discovery-ink); font-size: clamp(18px, 4.7vw, 22px); line-height: 1.55; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 13px 0 0; color: var(--p-discovery-muted); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .expanded h2, .expanded .summary { display: block; -webkit-line-clamp: unset; overflow: visible; }
-.thumbnail-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.thumbnail-bottom { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
 .expand-button { flex: 0 0 auto; font-size: 10px; padding: 4px 0; }
 .article-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 49px; padding: 10px 15px; }
 .dates, .states { display: flex; align-items: center; gap: 9px; }

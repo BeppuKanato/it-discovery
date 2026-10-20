@@ -7,5 +7,5 @@ defineProps<{ models: ApplicationModels }>();
 </script>
 
 <template>
-  <ArticleListPage :list-model="models.articleList" :state-model="models.articleState" />
+  <ArticleListPage :list-model="models.articleList" :state-model="models.articleState" :opening-model="models.articleOpening" />
 </template>

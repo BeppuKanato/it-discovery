@@ -12,9 +12,11 @@ const props = defineProps<{
   articles: readonly ArticleListItem[]; kind: ArticleListKind; initialLoading: boolean;
   loading: boolean; hasMore: boolean; error: string | null;
   savingByArticle: ReadonlyMap<number, 'pinned' | 'interested' | 'checking'>;
+  openingErrors: ReadonlyMap<number, string>;
+  readStatus: ReadonlyMap<number, { phase: 'saving' | 'failed' | 'uncertain'; message: string }>;
   saveErrors: ReadonlyMap<number, { message: string; uncertain: boolean }>;
 }>();
-const emit = defineEmits<{ pin: [articleId: number]; interest: [articleId: number]; more: []; retry: []; checkState: [articleId: number] }>();
+const emit = defineEmits<{ open: [articleId: number]; retryRead: [articleId: number]; pin: [articleId: number]; interest: [articleId: number]; more: []; retry: []; checkState: [articleId: number] }>();
 const sentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 onMounted(() => {
@@ -43,9 +45,16 @@ onUnmounted(() => observer?.disconnect());
       <!-- v-forの繰り返し範囲は、このliの開始から終了まで。articleは各回の記事1件。
            子カードの通知にIDを付けることで、Pageは対象の記事を指定してVMを呼べる。 -->
       <li v-for="article in articles" :key="article.articleId">
-        <ArticleCard :article="article" editable :pending="savingByArticle.get(article.articleId)"
+        <ArticleCard :article="article" editable :read-status="readStatus.get(article.articleId)?.phase" :pending="savingByArticle.get(article.articleId)"
           :actions-disabled="!!saveErrors.get(article.articleId)?.uncertain"
-          @pin="emit('pin', article.articleId)" @interest="emit('interest', article.articleId)" />
+          @open="emit('open', article.articleId)" @pin="emit('pin', article.articleId)" @interest="emit('interest', article.articleId)" />
+        <Message v-if="openingErrors.has(article.articleId)" severity="error" :closable="false" class="save-error">
+          {{ openingErrors.get(article.articleId) }}
+        </Message>
+        <div v-if="readStatus.get(article.articleId) && readStatus.get(article.articleId)?.phase !== 'saving'" class="save-error" role="status">
+          <p>{{ readStatus.get(article.articleId)?.message }} 開いた表示はこの画面内に残します。</p>
+          <Button type="button" label="既読を保存し直す" text size="small" @click="emit('retryRead', article.articleId)" />
+        </div>
         <div v-if="saveErrors.has(article.articleId)" class="save-error" role="status">
           <p>{{ saveErrors.get(article.articleId)?.message }}</p>
           <Button v-if="saveErrors.get(article.articleId)?.uncertain" type="button" label="状態を確認" text size="small"

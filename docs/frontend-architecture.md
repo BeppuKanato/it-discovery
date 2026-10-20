@@ -12,6 +12,7 @@
 | VM | 記事・フィルター・取得状態・保存状態を保持。操作をModelへ依頼し、結果を画面へ反映 | features/list/view-models/useArticleListViewModel.ts |
 | 一覧Model | 一覧の取得条件（20件）を組み立てて取得 | features/list/models/article-list.model.ts |
 | 記事状態Model | ピン・気になる・既読の保存、現在状態の取得、エラーの分類 | features/articles/models/article-state.model.ts |
+| 記事を開くModel | URL検証・別タブへの遷移依頼の受付時刻 | features/articles/models/article-opening.model.ts |
 | ジェスチャーModel | 引く方向・距離・成立判定。DOMやVueへ依存しない | features/list/models/pull-to-refresh-gesture.ts |
 | 通信 | Axiosの設定、HTTP入出力、応答検証 | infrastructure/api/api-client.ts |
 | 組み立て | ApiClientを生成し、二つのModelへ渡す | app/create-application-models.ts |
@@ -28,6 +29,8 @@ flowchart TB
   Page --> VM[一覧VM]
   VM --> List[一覧Model]
   VM --> State[記事状態Model]
+  VM --> Opening[記事を開くModel]
+  Opening --> Browser[ブラウザ操作の契約]
   VM --> Gesture[ジェスチャーModel]
   List --> API[ApiClientの一覧API契約]
   State --> API
@@ -48,6 +51,9 @@ API契約はTypeScriptのinterfaceで、実体はApiClient。組み立て関数�
 | hasMore | VMのref | 末尾の取得手段・終端の表示 |
 | savingByArticle | VMのreactive Map | 記事ごとの部分着色・操作制限。別の記事は操作可能 |
 | saveErrors・notice | VMのreactive Map・ref | 記事ごとの失敗・現在状態の確認、削除済み通知 |
+| openingErrors | VMのreactive Map | 開けなかった記事のすぐ下に理由を通知 |
+| readStatus | VMのreactive Map | 既読保存中・保存失敗・結果不明の表示と手動再試行 |
+| locallyOpened | VMの通常Map | 画面で開いた日時。古い応答による既読表示の巻き戻りを防ぐ |
 | canLoadMore | VMのcomputed | 既存の取得状態から導く。独立した保存値ではない |
 | nextCursor | VMの通常変数 | 次の要求に渡すだけで、値自体は画面に表示しない |
 | generation・AbortController | VMの通常変数 | フィルター変更・終了後の応答を無視し、不要な通信を中止 |
@@ -121,3 +127,5 @@ PageはVMとの接続、Templateはslotの配置、Organismは画面領域、Mol
 3. [ArticleListModel](../apps/web/src/features/list/models/article-list.model.ts)と[ArticleStateModel](../apps/web/src/features/articles/models/article-state.model.ts)：依頼がどのAPI呼び出しになるか。
 4. [ApiClient](../apps/web/src/infrastructure/api/api-client.ts)：実際のHTTPと応答の検証。
 5. [組み立て](../apps/web/src/app/create-application-models.ts)：Modelへ何を渡すか。
+
+元記事への遷移と既読保存は[記事を開く共通処理](article-opening.md)を参照。リンクのイベント→VM.openArticle→ArticleOpeningModel.open→受付時刻の表示→ArticleStateModel.recordOpenedの順で進み、外部への移動を保存応答まで待たせない。
