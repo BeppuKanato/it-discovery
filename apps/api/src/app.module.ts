@@ -1,3 +1,4 @@
+import { CollectionModule } from './collection/collection.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import serverConfig from './config/server.config';
@@ -6,7 +7,7 @@ import { ArticlesModule } from './articles/articles.module';
 import { SettingsModule } from './settings/settings.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, load: [serverConfig] }), ArticlesModule, SettingsModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true, load: [serverConfig] }), ArticlesModule, SettingsModule, CollectionModule],
   controllers: [HealthController],
 })
 export class AppModule {}

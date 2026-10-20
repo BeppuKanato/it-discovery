@@ -5,6 +5,9 @@ export type SourceTransport = typeof fetch;
 const MAX_BYTES = 20 * 1024 * 1024;
 
 export class SourceHttp {
+  private readonly cancellation = new AbortController();
+
+  close(): void { this.cancellation.abort(); }
   constructor(private readonly transport: SourceTransport = fetch) {}
 
   async get(url: string, headers: Record<string, string> = {}, redirects: RequestRedirect = 'follow'): Promise<string> {
@@ -12,7 +15,7 @@ export class SourceHttp {
     try {
       response = await this.transport(url, {
         headers: { 'User-Agent': 'it-discovery', ...headers },
-        redirect: redirects, signal: AbortSignal.timeout(25_000),
+        redirect: redirects, signal: AbortSignal.any([AbortSignal.timeout(25_000), this.cancellation.signal]),
       });
     } catch { throw new SourceFetchError('network'); }
     if (!response.ok) {
