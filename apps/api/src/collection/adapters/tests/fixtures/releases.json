@@ -1,0 +1,7 @@
+[
+  {"id":10,"name":"v1","tag_name":"v1","html_url":"https://github.com/example/repo/releases/tag/v1","body":"old","draft":false,"prerelease":false,"published_at":"2026-10-18T00:00:00Z"},
+  {"id":11,"name":"v1.1","tag_name":"v1.1","html_url":"https://github.com/example/repo/releases/tag/v1.1","body":"changes","draft":false,"prerelease":false,"published_at":"2026-10-19T00:00:00Z"},
+  {"id":12,"name":"","tag_name":"v2-beta","html_url":"https://github.com/example/repo/releases/tag/v2-beta","body":null,"draft":false,"prerelease":true,"published_at":"2026-10-20T00:00:00Z","updated_at":"2026-10-20T01:00:00Z","author":{"login":"sample"}},
+  {"id":13,"name":"draft","draft":true,"prerelease":false,"published_at":"2026-10-21T00:00:00Z"},
+  {"id":14,"name":"invalid","draft":false,"prerelease":false}
+]
