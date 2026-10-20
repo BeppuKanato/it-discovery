@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:ns0="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0"><channel><item>
+      <title>1048: Deno Is Dead</title>
+      <link>https://syntax.fm/1048</link>
+      <pubDate>Mon, 19 Oct 2026 11:00:00 -0000</pubDate>
+      <ns0:author>Wes Bos &amp; Scott Tolinski - Full Stack JavaScript Web Developers</ns0:author>
+      <guid isPermaLink="false">992dcb98-c8af-11f1-ba82-0366957cb860</guid>
+      </item>
+    <item>
+      <title>1047: Adobe has a big problem</title>
+      <link>https://syntax.fm/1047</link>
+      <pubDate>Wed, 14 Oct 2026 11:00:00 -0000</pubDate>
+      <ns0:author>Wes Bos &amp; Scott Tolinski - Full Stack JavaScript Web Developers</ns0:author>
+      <guid isPermaLink="false">731d3ea2-c63e-11f1-a892-e3eeae403e64</guid>
+      </item>
+    <item>
+      <title>1046: The Pi Updates are insane</title>
+      <link>https://syntax.fm/1046</link>
+      <pubDate>Mon, 12 Oct 2026 11:00:00 -0000</pubDate>
+      <ns0:author>Wes Bos &amp; Scott Tolinski - Full Stack JavaScript Web Developers</ns0:author>
+      <guid isPermaLink="false">1c505cac-c306-11f1-b685-f75638c47567</guid>
+      </item>
+    </channel></rss>

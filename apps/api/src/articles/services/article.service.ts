@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ArticleContent, ArticleIdentity, ArticleInput } from '../models/article';
+import type { ArticleContent, ArticleInput } from '../models/article';
+import { articleIdentity } from '../models/article-identity';
 import type { ArticleState } from '../models/article-state';
 import { ArticleRepository, type StoredArticle } from '../repositories/article.repository';
 import {
@@ -19,11 +20,7 @@ export class ArticleService {
     for (const value of [fetchedAt, input.publishedAt, input.sourceUpdatedAt]) {
       if (value && !Number.isFinite(value.getTime())) throw new Error('Invalid article date');
     }
-    const identity: ArticleIdentity = {
-      sourceId: input.sourceId,
-      kind: input.externalArticleId ? 'id' : 'url',
-      value: input.externalArticleId || input.url,
-    };
+    const identity = articleIdentity(input);
     const content: ArticleContent = {
       title: input.title,
       description: input.description ?? null,

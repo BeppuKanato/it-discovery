@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='utf-8'?>
+<feed xmlns="http://www.w3.org/2005/Atom"><entry>
+  <id>yt:video:LJ2v4-FvPcA</id>
+  <title>🧰 Builders building with Gemini Audio</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/LJ2v4-FvPcA" />
+  <author>
+   <name>Google for Developers</name>
+   <uri>https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw</uri>
+  </author>
+  <published>2026-10-16T21:00:00+00:00</published>
+  <updated>2026-10-19T16:31:28+00:00</updated>
+  </entry>
+ <entry>
+  <id>yt:video:-nmcYcO-EE8</id>
+  <title>🎵 Turning motion into music with Gemini</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/-nmcYcO-EE8" />
+  <author>
+   <name>Google for Developers</name>
+   <uri>https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw</uri>
+  </author>
+  <published>2026-10-16T16:00:00+00:00</published>
+  <updated>2026-10-16T20:23:20+00:00</updated>
+  </entry>
+ <entry>
+  <id>yt:video:qJplHFjyv2A</id>
+  <title>📖 Explore custom voice narration with Gemini 3.8 Flash TTS</title>
+  <link rel="alternate" href="https://www.youtube.com/shorts/qJplHFjyv2A" />
+  <author>
+   <name>Google for Developers</name>
+   <uri>https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw</uri>
+  </author>
+  <published>2026-10-15T23:00:26+00:00</published>
+  <updated>2026-10-18T21:53:04+00:00</updated>
+  </entry>
+ </feed>

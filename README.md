@@ -45,6 +45,8 @@ PRの作成・更新とmainの更新でも、依存の新規導入から同じ�
 
 ## 設計資料
 
+- [情報源の取得と変換](docs/source-adapters.md)：RSS・Atom・GitHub Releases、欠損・件数・失敗の扱い。
+
 - [記事一覧APIの使い方と構成図](docs/article-list-api.md)：全記事・気になる一覧の取得条件、カーソル、応答JSON、実装した責務と処理順。
 - [保存基盤の構成図](docs/storage-architecture.md)：PR #31で実装した責務・依存関係・記事登録の処理順。
 - [SQLiteの作成とサンプル投入](docs/database.md)：DB保存先、マイグレーション、架空サンプル投入、保存処理の読み方。
