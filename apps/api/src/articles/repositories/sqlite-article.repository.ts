@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { articles, articleStates, sources } from '../../infrastructure/database/schema';
 import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
@@ -117,6 +117,51 @@ export class SqliteArticleRepository extends ArticleRepository {
       .innerJoin(sources, eq(articles.sourceId, sources.sourceId))
       .where(condition).orderBy(desc(articles.fetchedAt), desc(articles.articleId)).limit(limit).all();
     return rows.map((row) => ({ article: toArticle(row.article), state: toArticleState(row.state), source: row.source }));
+  }
+
+  // 削除時にも状態条件をSQLへ含める。呼び出し元のimmediate transaction中は他の書き込みが割り込まない。
+  deleteExpired(before: Date): number {
+    const ids = this.database.db.select({ id: articles.articleId }).from(articles)
+      .innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
+      .where(and(eq(articleStates.interested, false), eq(articleStates.pinned, false),
+        isNull(articleStates.lastOpenedAt), lt(articles.fetchedAt, before))).all().map((row) => row.id);
+    return this.deleteUnprotected(ids);
+  }
+
+  countProtected(): number {
+    return this.database.db.select({ total: count() }).from(articleStates)
+      .where(or(eq(articleStates.interested, true), eq(articleStates.pinned, true))).get()!.total;
+  }
+
+  trimToLimit(maximum: number): number {
+    const total = this.database.db.select({ total: count() }).from(articles).get()!.total;
+    let remaining = Math.max(0, total - maximum);
+    let removed = 0;
+    for (const read of [false, true]) {
+      if (remaining === 0) break;
+      const ids = this.database.db.select({ id: articles.articleId }).from(articles)
+        .innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
+        .where(and(eq(articleStates.interested, false), eq(articleStates.pinned, false),
+          read ? isNotNull(articleStates.lastOpenedAt) : isNull(articleStates.lastOpenedAt)))
+        .orderBy(asc(read ? articleStates.lastOpenedAt : articles.fetchedAt), asc(articles.articleId))
+        .limit(remaining).all().map((row) => row.id);
+      const deleted = this.deleteUnprotected(ids);
+      removed += deleted;
+      remaining -= deleted;
+    }
+    return removed;
+  }
+
+  private deleteUnprotected(ids: number[]): number {
+    // SQLiteのbind変数上限を越えないよう分割する。同じtransaction内で保護条件を再確認する。
+    let removed = 0;
+    for (let start = 0; start < ids.length; start += 500) {
+      const eligible = this.database.db.select({ id: articleStates.articleId }).from(articleStates)
+        .where(and(inArray(articleStates.articleId, ids.slice(start, start + 500)),
+          eq(articleStates.interested, false), eq(articleStates.pinned, false)));
+      removed += this.database.db.delete(articles).where(inArray(articles.articleId, eligible)).run().changes;
+    }
+    return removed;
   }
 
   // 指定された状態の項目を保存する。

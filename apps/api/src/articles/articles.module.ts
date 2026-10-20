@@ -1,3 +1,4 @@
+import { ArticleRetentionService } from './services/article-retention.service';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../infrastructure/database/database.module';
 import { ArticleRepository } from './repositories/article.repository';
@@ -16,9 +17,9 @@ import { SortingController } from './controllers/sorting.controller';
   imports: [DatabaseModule],
   controllers: [ArticlesController, ArticleStateController, SortingController],
   // 抽象の名前で要求された部品へ、どの実装を渡すかをここで組み合わせる。
-  providers: [ArticleService, ArticleStateService, ArticleSortingService,
+  providers: [ArticleRetentionService, ArticleService, ArticleStateService, ArticleSortingService,
     { provide: ArticleRepository, useClass: SqliteArticleRepository },
     { provide: ArticleInterestBatchRepository, useClass: SqliteArticleInterestBatchRepository }],
-  exports: [ArticleService, ArticleStateService, ArticleSortingService],
+  exports: [ArticleRetentionService, ArticleService, ArticleStateService, ArticleSortingService],
 })
 export class ArticlesModule {}

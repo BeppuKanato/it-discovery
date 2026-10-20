@@ -14,7 +14,8 @@ describe('記事状態の直接保存', () => {
     };
     articles = {
       transaction: jest.fn((action: () => unknown) => action()) as jest.Mocked<ArticleRepository>['transaction'],
-      findById: jest.fn((_id: number): StoredArticle | undefined => current), findByIdentity: jest.fn(), findByIds: jest.fn(), registerInterests: jest.fn(), findSortingCandidates: jest.fn(), findPage: jest.fn(),
+      findById: jest.fn((_id: number): StoredArticle | undefined => current), deleteExpired: jest.fn(), countProtected: jest.fn(), trimToLimit: jest.fn(),
+      findByIdentity: jest.fn(), findByIds: jest.fn(), registerInterests: jest.fn(), findSortingCandidates: jest.fn(), findPage: jest.fn(),
       insert: jest.fn(), updateContent: jest.fn(),
       updateState: jest.fn((_id, patch) => ({ ...current, state: { ...current.state, ...patch } })),
     };
