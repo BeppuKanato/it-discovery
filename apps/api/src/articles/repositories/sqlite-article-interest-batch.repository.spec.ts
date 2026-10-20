@@ -13,7 +13,6 @@ import { ArticleStateService } from '../services/article-state.service';
 import { ArticleSortingService } from '../services/article-sorting.service';
 import { SqliteArticleRepository } from './sqlite-article.repository';
 import { SqliteArticleInterestBatchRepository } from './sqlite-article-interest-batch.repository';
-import { SqliteArticleStateOperationRepository } from './sqlite-article-state-operation.repository';
 
 describe('SQLiteの仕分け対象と一括登録', () => {
   let directory: string;
@@ -84,8 +83,8 @@ describe('SQLiteの仕分け対象と一括登録', () => {
   it('登録→一覧で解除→再接続→古い一括登録の再送でも解除を維持する', () => {
     const id = add(); const batchId = randomUUID();
     const result = service.submit(batchId, { revision: 5, articleIds: [id] });
-    const stateService = new ArticleStateService(new SqliteArticleRepository(database), new SqliteArticleStateOperationRepository(database));
-    stateService.apply(id, { operationId: randomUUID(), change: { kind: 'interested', value: false } });
+    const stateService = new ArticleStateService(new SqliteArticleRepository(database));
+    stateService.apply(id, { change: { kind: 'interested', value: false } });
     database.onApplicationShutdown(); connect();
     expect(service.submit(batchId, { revision: 5, articleIds: [id] })).toEqual(result);
     expect(articleService.findById(id)?.state.interested).toBe(false);

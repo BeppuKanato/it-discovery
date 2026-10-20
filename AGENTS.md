@@ -29,7 +29,7 @@
 ## 責務と説明の方針
 
 - 機能を最上位にまとめる。DB接続などの共通基盤はinfrastructureに置く。特定の機能のルールは、その機能が持つ。
-- 機能内はcontrollers・services・repositories・modelsで役割を表す。Nestのcontrollers直下はHTTP入口の*.controller.tsだけにする。補助処理はcontrollers/formatters・pipes・filters、テストはcontrollers/testsへ分ける。Repositoryの抽象と具体実装はrepositoriesにまとめる。必要なフォルダだけ作る。
+- Nestの機能内はcontrollers・services・repositories・modelsで役割を表す。Nestのcontrollers直下はHTTP入口の*.controller.tsだけにする。補助処理はcontrollers/formatters・pipes・filters、テストはcontrollers/testsへ分ける。Repositoryの抽象と具体実装はrepositoriesにまとめる。必要なフォルダだけ作る。
 - FormatterはHTTP入出力の形式変換を行う。カーソルのエンコード・デコードなど双方で使う変換もformattersに置く。Serviceからは参照しない。
 - 機能固有のPipe・Filter・Interceptorは対象Controllerまたはメソッド・引数で適用を明示する。Moduleや隠れた登録経由で一部のControllerへ選択的に適用しない。
 - 全Controller共通のHTTP部品が必要になった場合だけinfrastructure/http配下へ置き、main.tsの一か所でグローバル登録する。登録と適用範囲を資料へ記載し、Controllerごとの隠れた除外や条件分岐を作らない。部品の種類は役割で選び、共通だからという理由だけでMiddlewareへ変えない。
@@ -44,3 +44,15 @@
 - PRには説明図へのリンクと、機能・変更目的ごとのコミットおよび確認ファイルを載せる。
 
 実装例は[保存基盤の構成図](docs/storage-architecture.md)を参照する。
+
+## フロントの設計
+
+- MVVM＋Atomic Designを採用する。機能を先に分け、その中をviews・view-models・modelsで分ける。共通の通信・端末保存はinfrastructureへ置く。
+- Viewは描画・DOM・ブラウザイベントの受け渡しを担当する。タッチ情報は座標などの値に変換してViewModelへ渡す。ジェスチャーの状態・方向・距離・成立判定はmodelsの名前を付けた部品が持ち、ViewModelが操作の結果を処理へつなぐ。TouchEventやDOMをModelへ渡さない。Pageが子のemitとViewModelの操作を結び、子に業務処理を持たせない。
+- ViewModelは画面状態（記事配列・フィルター・取得中・エラー・記事ごとの保存中）と操作の進行を持つ。Modelへ取得・保存を依頼し、戻り値を状態へ反映する。VMからAPIを直接参照しない。続き位置や要求番号など描画に使わない内部値は通常変数にする。既存値から導ける表示値だけcomputedを使い、独立した状態を増やさない。
+- Modelは取得条件の組み立て・保存・エラー分類・操作判定などを担当する。一覧・記事状態Modelは結果を返し、VMと同じ記事配列を別Storeへ保持しない。ModelからViewを参照しない。
+- ModelとApiClientはapp/create-application-models.tsで組み立て、propsでPageへ渡す。PageがVMを生成し、onMountedでinitialize、onUnmountedでdisposeを呼ぶ。Appに一覧固有の初回取得を置かない。
+- ピン・気になるは保存中の部分着色と同じ記事の操作制限、成功後の状態確定を使う。永続キュー・操作ID・起動同期・更新の自動再送を導入しない。結果不明時は現在状態をGETし、確認不能なら手動確認を案内する。仕分けの端末保存は別機能として設計する。
+- PrimeVueの基本部品をAtomsとして使う。名前を合わせるだけのラッパーや空フォルダは作らない。Moleculeは小さなUI機能、Organismは画面内のまとまり、Templateは配置、PageはViewModelとの接続を担当する。
+- 辞書は用途に応じてMap・Recordを使う。動的キーや一部だけ存在するキーはMap、固定キーで同じ値型の必須項目はRecordを基本にする。項目ごとに型が違うデータはinterfaceなどで表す。省略可能な辞書をPartial<Record<...>>で表す構造を増やさない。
+- 構成変更時は[フロントの構成図](docs/frontend-architecture.md)を更新する。依存関係・部品構成・実行順序は別図にし、状態の持ち主を明示する。

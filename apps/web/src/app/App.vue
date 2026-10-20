@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ApiClient } from '../infrastructure/api/api-client';
-import ArticleListPage from '../features/list/components/ArticleListPage.vue';
+import ArticleListPage from '../features/list/views/pages/ArticleListPage.vue';
+import type { ApplicationModels } from './create-application-models';
 
-// import.meta.envはViteが渡す設定。未指定なら同じ配信元の/apiへ接続する。
-// 通信部品はここで作り、画面へ渡す。画面自身はAxiosの生成方法を知らなくてよい。
-const api = new ApiClient(import.meta.env.VITE_API_BASE_URL || '/api');
+// アプリ共通の組み立て結果を渡す。ページの初回取得・終了はPageとVMが担当する。
+defineProps<{ models: ApplicationModels }>();
 </script>
 
 <template>
-  <!-- :apiは文字列ではなく、scriptで作ったapiオブジェクトを子のpropsへ渡す。 -->
-  <ArticleListPage :api="api" />
+  <ArticleListPage :list-model="models.articleList" :state-model="models.articleState" />
 </template>

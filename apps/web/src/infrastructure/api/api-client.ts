@@ -1,34 +1,47 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
-import type { ArticlePageRequest, ArticlePageResponse, HealthResponse } from '@it-discovery/contracts';
+import type { ArticlePageRequest, ArticlePageResponse, ArticleStateUpdateRequest, ArticleStateResponse, HealthResponse } from '@it-discovery/contracts';
 import { isArticlePageResponse } from './article-page-response';
+import { isArticleStateResponse } from './article-state-response';
+import { ApiError } from './api-error';
 
+// 通信設定・JSON検証だけを担当する。保存キュー・操作ID・自動再送は持たない。
 export class ApiClient {
   private readonly http: AxiosInstance;
-
   constructor(baseURL: string) {
-    // createで共通の接続先・待ち時間を持つAxiosインスタンスを作る。10秒を超えた通信は失敗扱い。
     this.http = axios.create({ baseURL, timeout: 10_000 });
   }
 
-  // 一覧の一ページを取得し、表示用の形式を確認する。
   async getArticlePage(request: ArticlePageRequest, signal?: AbortSignal): Promise<ArticlePageResponse> {
-    // unknownは受信JSONを未検証の値として扱う型。TypeScriptの型だけでは通信内容を保証できない。
-    // paramsはクエリ文字列へ、signalは通信を中止するためにAxiosへ渡す。
     const { data } = await this.http.get<unknown>('/articles', { params: request, signal });
-    if (!isArticlePageResponse(data, request.cursor)) {
-      throw new Error('一覧の応答を確認できませんでした。');
-    }
+    if (!isArticlePageResponse(data, request.cursor)) throw new Error('一覧の応答を確認できませんでした。');
     return data;
   }
 
-  // 疎通確認の応答を取得して形式を確認する。
+  async updateArticleState(articleId: number, request: ArticleStateUpdateRequest, signal?: AbortSignal): Promise<ArticleStateResponse> {
+    try {
+      const { data } = await this.http.put<unknown>(`/articles/${articleId}/state`, request, { signal });
+      if (!isArticleStateResponse(data, articleId)) throw new ApiError();
+      return data;
+    } catch (error) { throw this.stateError(error); }
+  }
+
+  async getArticleState(articleId: number, signal?: AbortSignal): Promise<ArticleStateResponse> {
+    try {
+      const { data } = await this.http.get<unknown>(`/articles/${articleId}/state`, { signal });
+      if (!isArticleStateResponse(data, articleId)) throw new ApiError();
+      return data;
+    } catch (error) { throw this.stateError(error); }
+  }
+
+  private stateError(error: unknown): ApiError {
+    return error instanceof ApiError ? error : new ApiError(axios.isAxiosError(error) ? error.response?.status : undefined);
+  }
+
   async getHealth(): Promise<HealthResponse> {
     const { data } = await this.http.get<unknown>('/health');
     if (!data || typeof data !== 'object' || !('status' in data) || data.status !== 'ok'
-      || !('message' in data) || typeof data.message !== 'string') {
-      throw new Error('サーバーの応答を確認できませんでした。');
-    }
+      || !('message' in data) || typeof data.message !== 'string') throw new Error('サーバーの応答を確認できませんでした。');
     return { status: data.status, message: data.message };
   }
 }

@@ -1,8 +1,10 @@
 # 技術構成とコードの配置
 
-更新日：2026-10-15
+更新日：2026-10-20
 
 [READMEに戻る](../README.md) · [クラス図](classes.md) · [ルール](rules.md) · [画面構成の参照](ui-reference.md) · [開発一覧](https://github.com/BeppuKanato/it-discovery/issues/1)
+
+> 一覧は[VMが画面状態を持ち、Modelから取得・保存結果を受け取る構成](frontend-architecture.md)。ピン・気になる・既読の永続再送は廃止し、[直接保存API](article-state-api.md)を使う。仕分けフロントの記述は後続Issueの予定。
 
 ## この資料の位置付け
 
@@ -34,9 +36,9 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 | フロントのビルド | Vite | Vueを開発し、配布用の静的ファイルを生成する |
 | UI部品 | PrimeVue 4のStyled Mode＋Auraを元にしたテーマ | 共通部品を使用箇所でimportし、色と外観をテーマ設定に集める。画面固有の配置はscoped CSSで扱う |
 | 画面の経路 | Vue Router | 全記事・気になる・仕分けの経路を管理する。仕分け中の一覧移動は設けず、途中終了で結果を確定する |
-| 共有する表示状態 | Pinia | 起動状態と記事の表示状態を管理する。画面内だけの状態はref／computedに留める |
+| 一覧の表示状態 | Vue ref・reactive・computed | VMが画面の寿命に合わせて管理する。現時点で共有Storeは設けない |
 | HTTP通信 | Axiosを使うApiClient | axios.createでベースURL・タイムアウトを揃え、JSON変換とエラー整理をApiClientに集める。各画面で通信を直接書かない |
-| 端末の未送信保存 | IndexedDB＋idb | 非同期の端末保存をPromiseで扱い、PendingInterestStoreの実装内に閉じ込める |
+| 端末の未送信保存 | 仕分けで後続検討 | 一覧の永続保存・再送は撤去済み。仕分けの保存手段は実装時に選ぶ |
 | サーバーのDB操作 | Drizzle ORM＋better-sqlite3 | テーブル定義・検索・更新をTypeScriptで読み、SQLiteファイルを直接使う |
 | DB構造の変更 | Drizzle KitでSQLマイグレーションを生成・レビューして適用 | データを消さず変更履歴を管理する。DB本体はGitに入れない |
 | HTTP入力検証 | 一覧はNestの専用Pipe、DTO入力はValidationPipe＋class-validator／class-transformer | HTTPの形式は境界で、アプリの共通条件はServiceで確認する |
@@ -44,11 +46,11 @@ VMの地域・サイズ・ディスク容量・IP・HTTPS・ドメイン・バ�
 | パッケージ管理 | npm workspaces | 1つのリポジトリにweb・api・共有型を置き、ルートで依存を管理する |
 | 動作確認 | webはVitest、apiはJest | 仕分けの履歴・通信順・SQLiteの保護と保存を、それぞれ適した範囲で確認する |
 
-これらは実装開始用の選択。Issue #5の基盤ではVue 3.5・Vite 8・Nest 12・Axios 1・TypeScript 5.9を選び、package-lock.jsonに固定した。Node.js 24.15以上の24 LTSを使う。最低要件はNest CLIの間接依存とJestからNest 12のES Modulesを読む互換性も含めている。Pinia・Vue Router・DB・idb・定期実行は、利用する機能のIssueで追加する。サーバーのHTTPアダプターはNest標準のExpressを初期構成とし、Fastifyへの変更は必要が出てから検討する。
+これらは実装開始用の選択。Issue #5の基盤ではVue 3.5・Vite 8・Nest 12・Axios 1・TypeScript 5.9を選び、package-lock.jsonに固定した。Node.js 24.15以上の24 LTSを使う。最低要件はNest CLIの間接依存とJestからNest 12のES Modulesを読む互換性も含めている。DBはIssue #6で追加した。idb・Piniaは一覧整理で撤去した。Vue Router・定期実行は、利用する機能のIssueで追加する。サーバーのHTTPアダプターはNest標準のExpressを初期構成とし、Fastifyへの変更は必要が出てから検討する。
 
 better-sqlite3のDB処理は同期であり、Promiseに包むだけでは処理中の待ち時間は消えない。個人利用・短いDB処理を前提に選び、外部取得はトランザクションの外で行う。件数削除などの長い処理が問題になった場合に分離を検討する。ネイティブモジュールの互換性はDockerのLinux環境でも確認し、ホストのnode_modulesをイメージへ持ち込まない。
 
-Axiosの共通インスタンスはApiClient内で生成し、画面側には記事取得・状態変更など目的別の関数を公開する。共通処理は通信設定とエラー整理に留め、登録順・再試行・未送信同期はMutationCoordinatorとInterestResultSyncが管理する。Interceptorへ業務処理を集めない。
+Axiosの共通インスタンスはApiClient内で生成し、画面側には記事取得・状態変更など目的別の関数を公開する。共通処理は通信設定とエラー整理に留め、記事ごとの保存中・失敗表示は一覧VMが管理する。更新要求は自動再送しない。仕分けのInterestResultSyncは後続Issueで実装する。Interceptorへ業務処理を集めない。
 
 Drizzle ORMはテーブル定義と検索・更新をTypeScriptで表す層、better-sqlite3はそのSQLをSQLiteで実行するドライバーである。アプリのDB処理はRepositoryからDrizzleを呼び、Drizzleがbetter-sqlite3を使ってDBファイルへ読み書きする。IndexedDBはブラウザ内の保存先、idbはそのAPIをPromiseで扱えるようにする小さなライブラリである。
 
@@ -56,7 +58,7 @@ Drizzle ORMはテーブル定義と検索・更新をTypeScriptで表す層、be
 
 機能のまとまりを優先し、必要なファイルを各Issueで追加する。空のクラスを先に大量作成しない。
 
-機能内はcontrollers・services・repositories・modelsで役割を表す。controllersはHTTPの受付と形式変換、servicesは判断と手順、repositoriesは保存・検索の抽象と実装、modelsはデータ型などを置く。フォルダを移しても依存の向きは変えず、ServiceはRepositoryの抽象を参照する。
+バックエンドの機能内はcontrollers・services・repositories・modelsで役割を表す。controllersはHTTPの受付と形式変換、servicesは判断と手順、repositoriesは保存・検索の抽象と実装、modelsはデータ型などを置く。フォルダを移しても依存の向きは変えず、ServiceはRepositoryの抽象を参照する。
 
 機能別構成の中をレイヤードで整理し、外部接続にはポートとアダプターの考え方を使う。Serviceが判断と手順を持ち、DBの検索・保存はRepositoryの抽象を通して頼む。具体的なSQLite実装はModuleやコマンドで組み立てる。各ModuleはServiceを公開し、他の機能から内部Repositoryを直接使わない。オニオンへの全面的な分割は、実装を読んで必要性を確認してから検討する。
 
@@ -68,31 +70,22 @@ Issue #7では[記事一覧API](article-list-api.md)を追加した。HTTPの形
 apps/
   web/
     src/
-      app/                         # main、ルーター、サービスの組み立て
+      app/                         # 初期化・Modelの組み立て・起動の入口
       components/
-        ArticleCard.vue             # 共通カード
-        SourceBadge.vue             # 出典の表示
+        molecules/SourceBadge.vue
+        organisms/ArticleCard.vue
       features/
-        startup/useStartup.ts
         list/
-          ArticleListPage.vue
-          useArticleList.ts
-        sorting/
-          SortingPage.vue
-          useSorting.ts
-          sorting-session.ts
-      stores/
-        article-state.store.ts
-        startup.store.ts
-      services/
-        mutation-coordinator.ts
-        article-opening.service.ts
-        interest-result-sync.ts
+          views/pages・templates・organisms/
+          view-models/useArticleListViewModel.ts
+          models/
+            article-list.model.ts  # 一覧取得条件
+            article-list-api.ts
+            pull-to-refresh-gesture.ts
+        articles/models/article-state.model.ts
+        connection/                # 初期の接続確認サンプル
       infrastructure/
         api/api-client.ts
-        storage/
-          pending-interest.store.ts
-          indexeddb-pending-interest.store.ts
   api/
     src/
       main.ts
@@ -102,7 +95,6 @@ apps/
         controllers/
           articles.controller.ts    # 一覧取得のHTTP入口
           article-state.controller.ts
-          article-state-operation.controller.ts
           sorting.controller.ts
           pipes/
             article-page-query.pipe.ts # HTTPパラメータの形式を確認
@@ -128,7 +120,7 @@ apps/
           sqlite-article-interest-batch.repository.ts
         validators/
           article-id.validator.ts   # PipeとServiceで共有するID検証
-          article-state-operation.validator.ts
+          article-state-change.validator.ts
           article-sorting.validator.ts
         models/
           article.ts
@@ -179,7 +171,7 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 
 ## クラス図からコードへの対応
 
-フロントのControllerは「画面操作を進める役割」の呼称。Vueではuse〜というcomposableへ対応させる。NestのControllerは「HTTPの入口」であり、同名・同責任にしない。
+旧クラス図の旧設計図のフロントControllerは「画面操作を進める役割」の呼称。現在はMVVMのViewModelに対応させ、VueのComposableとして実装する。NestのHTTP Controllerと同名・同責任にしない。
 
 | クラス図の責任 | 実装予定の場所 | 担当すること |
 |---|---|---|
@@ -188,11 +180,11 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 | ArticleState | api/src/articles/models/article-state.ts | 既読・仕分け対象・保護条件を判定する |
 | ArticlePageResponse・ArticleListItem | packages/contracts/src/articles.ts | 記事内に状態を対応付け、日時を文字列にした表示用JSONと続き位置を表す |
 | PendingInterestBatch | webの保存契約とinfrastructure/storage/ | 端末内のID集合と版を表す。通信形式とは別に扱う |
-| StartupCoordinator | web/src/features/startup/useStartup.ts | 同期して通常操作を開放する |
-| ListController | web/src/features/list/useArticleList.ts | 一覧取得・更新・追加と操作の進行を担当する |
+| StartupCoordinator（未実装） | 仕分け導入時に検討 | 仕分けの残存結果と日次判定の統合 |
+| ListController | web/src/features/list/view-models/useArticleListViewModel.ts | 一覧取得・更新・追加と操作の進行を担当する |
 | SortingController | web/src/features/sorting/useSorting.ts | 対象取得・手元の判断・保存依頼を進める |
 | SortingSession・SortingDecision | web/src/features/sorting/sorting-session.ts | その回のカード・判断履歴・取り消しを扱う |
-| MutationCoordinator | web/src/services/mutation-coordinator.ts | 一覧の保存順と確定・不明結果を管理する |
+| 一覧の保存操作 | web/src/features/list/view-models/useArticleListViewModel.ts | 保存中の制限・結果反映・現在状態の確認 |
 | ArticleOpeningService | web/src/services/article-opening.service.ts | 外部を開き、既読の保存を依頼する |
 | InterestResultSync | web/src/services/interest-result-sync.ts | 途中保存・終了送信・起動時再送を担当する |
 | PendingInterestStore | webの保存契約、IndexedDB実装 | 未送信結果を読み書きする |
@@ -208,11 +200,9 @@ Controller直下はHTTP入口だけとし、補助処理は役割別のサブフ
 | ArticleNormalizer | api/src/collection/article-normalizer.ts | 外部データを共通形式へ変換する。識別条件はArticleServiceが作る |
 | RetentionService | api/src/retention/retention.service.ts | 保護・期限・件数から保持を判断する |
 
-画面は描画と入力受付、composableは操作の進行、Serviceは通信・保存の調整を担当する。一覧と仕分けで共通に表示する記事状態はPiniaのID別状態を使い、サーバー確定値と未確定の表示変更を区別する。ページのID列・カーソル・取得世代は一覧側、その回の履歴はSortingSession側に置く。
+Issue #11の一覧はMVVM＋Atomic Designを採用する。[フロントの構成図](frontend-architecture.md)に依存関係・部品構成・実行順序を分けて記載する。Viewは表示と入力通知、VMは記事配列・フィルター・取得と保存の状態管理、Modelは取得・保存・失敗分類を担当する。
 
-SortingSessionはVue・Axios・IndexedDBに依存しない純粋な処理にする。useSortingが操作後の表示用状態をref等へ反映する。Piniaに同じ履歴を重複して保存したり、SortingSessionを次回起動で復元したりしない。
-
-Vueのサービスはappで組み立ててcomposableに渡す。NestのServiceとRepositoryはModuleのproviderで接続する。TypeScriptのinterfaceは実行時に存在しないため、Repositoryを差し替えるDIには明示したトークンを使う。ORMとHTTPデコレーターをドメイン処理へ持ち込まない。
+PageのonMountedがVM.initializeを呼ぶ。Modelは記事配列を保持せず結果を返し、VMが画面状態へ反映する。AppはModelを渡すだけで、一覧初回取得や同期を起動しない。永続キュー・操作ID・起動同期・Pinia Storeは一覧から撤去した。仕分けの端末保存・起動統合は後続Issue。
 
 ## APIの型と境界
 
@@ -220,20 +210,20 @@ packages/contractsには、画面とAPIで共有する要求・応答のTypeScri
 
 HTTPでは日時をISO形式の文字列、集合を配列に変換する。ブラウザ側のSetやサーバー側のDateインスタンスを、そのままJSONで共有できると扱わない。表示用データには出典の表示名・アイコンなど必要な情報を含め、サーバーの取得URLや秘密情報を含めない。
 
-共有型は実行時の検証を保証しない。HTTP入口のDTOとValidationPipeで検証し、契約型との食い違いを型チェックとAPIのテストで確認する。batchId＋revision、operationIdを送信し、保存結果を識別する。削除済みIDを記事別に返し、再送には同じ結果を返す（[操作方針](operation-policy.md)）。具体的なAPI型は#8・#9で定義する。端末の版とサーバーの保存状態を同一視しない。
+共有型は実行時の検証を保証しない。HTTP入口のDTOとValidationPipeで検証し、契約型との食い違いを型チェックとAPIのテストで確認する。仕分けはbatchId＋revisionを送信し、保存結果を識別する。一覧・既読は操作IDなしの直接保存を使う。削除済みIDを記事別に返し、再送には同じ結果を返す（[操作方針](operation-policy.md)）。具体的なAPI型は#8・#9で定義する。端末の版とサーバーの保存状態を同一視しない。
 
 ## 読む順序と処理の例
 
 | 操作 | コードを辿る順序 |
 |---|---|
-| 一覧を見る | ArticleListPage → useArticleList → ApiClient → ArticlesController → ArticleService → SQLiteArticleRepository |
-| 一覧で気になるを変える | useArticleList → 表示状態の更新 → MutationCoordinator → ApiClient → HTTP入口 → ArticleService → Repository |
+| 一覧を見る | ArticleListPage → useArticleListViewModel → 記事一覧Model → ApiClient → ArticlesController → ArticleService → SQLiteArticleRepository |
+| 一覧で気になるを変える | ArticleListPage → useArticleListViewModel → ArticleStateModel → ApiClient → HTTP入口 → ArticleService → Repository |
 | スワイプ・戻す | SortingPage → useSorting → SortingSession → InterestResultSyncの端末保存。毎回のサーバー要求はない |
 | 仕分けを終了する | useSorting → 最終端末保存の確認 → InterestResultSync → ApiClient → ArticleServiceの一括登録 |
 | 起動する | useStartup → InterestResultSync → 未送信結果の確認・送信 → 成功後に通常操作 |
 | 定期収集する | @nestjs/schedule → CollectionJob → SourceAdapter → ArticleNormalizer → 既存更新またはRetentionService → Repository |
 
-非同期送信は画面の応答を待たせないための仕組みであり、ブラウザを閉じても必ず続く保証ではない。仕分けの端末保存・再送は既存ルールを維持し、一覧操作・既読も端末へ保存し、次回起動時に同期する。
+非同期送信は画面の応答を待たせないための仕組みであり、ブラウザを閉じても必ず続く保証ではない。仕分けの端末保存・再送の仕様は維持する。一覧操作・既読は永続保存・自動再送を行わず、結果不明時は現在状態を取得する。
 
 ## 開発・ビルド・配置の方針
 

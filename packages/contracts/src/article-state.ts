@@ -4,8 +4,8 @@ export type ArticleStateChange =
   | { kind: 'pinned'; value: boolean }
   | { kind: 'opened'; openedAt: string };
 
-export interface ArticleStateMutationRequest {
-  operationId: string;
+// 操作記録を持たない直接保存用の本文。成功応答はArticleStateResponse。
+export interface ArticleStateUpdateRequest {
   change: ArticleStateChange;
 }
 
@@ -20,12 +20,3 @@ export interface ArticleStateResponse {
   articleId: number;
   state: ArticleStateValue;
 }
-
-// missingは再送しても登録できない結果。通信失敗とは区別して端末側で解消できる。
-export type ArticleStateOperationResponse = {
-  operationId: string;
-  articleId: number;
-} & (
-  | { status: 'saved'; state: ArticleStateValue }
-  | { status: 'missing'; state: null }
-);

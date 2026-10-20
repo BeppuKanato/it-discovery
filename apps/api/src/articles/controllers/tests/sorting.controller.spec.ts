@@ -92,8 +92,9 @@ describe('仕分けのHTTP API', () => {
   it('状態APIで後から解除した記事を、古い一括登録の再送で登録へ戻さない', async () => {
     const id = add(); const batchId = randomUUID(); const body = { revision: 1, articleIds: [id] };
     const first = await put(batchId, body).then((r) => r.json());
-    await fetch(`${base}/articles/${id}/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operationId: randomUUID(), change: { kind: 'interested', value: false } }) });
+    const unregistered = await fetch(`${base}/articles/${id}/state`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ change: { kind: 'interested', value: false } }) });
+    expect(unregistered.status).toBe(200);
     expect(await put(batchId.toUpperCase(), body).then((r) => r.json())).toEqual(first);
     expect(articleService.findById(id)?.state.interested).toBe(false);
   });

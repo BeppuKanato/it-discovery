@@ -13,7 +13,6 @@ apps/api/src/
 │  └─ controllers/
 │     ├─ articles.controller.ts        一覧APIの入口
 │     ├─ article-state.controller.ts   状態取得・更新の入口
-│     ├─ article-state-operation.controller.ts
 │     ├─ sorting.controller.ts         仕分け対象・一括登録・結果照会
 │     ├─ formatters/                  HTTP入出力の形を変換する
 │     │  ├─ article-page.formatter.ts
@@ -50,8 +49,7 @@ apps/api/src/
 | GET /api/health | なし | Nest標準 | なし（応答を直接返す） |
 | GET /api/articles | ArticlePageQueryPipe | Controllerで一覧の入力エラーを400へ変換、その他はNest標準 | toArticlePageResponse、toArticleListItem、カーソル変換 |
 | GET /api/articles/:articleId/state | ArticleIdPipe | ArticleStateExceptionFilter、記事なしはControllerが404 | toStateValue |
-| PUT /api/articles/:articleId/state | ArticleIdPipe | ArticleStateExceptionFilter | toStateOperationResponse |
-| GET /api/article-state-operations/:operationId | なし（ID条件はServiceで確認） | ArticleStateExceptionFilter、未記録はControllerが404 | toStateOperationResponse |
+| PUT /api/articles/:articleId/state | ArticleIdPipe | ArticleStateExceptionFilter | toStateValue |
 | GET /api/sorting/candidates | なし（最大10件はServiceの固定値） | SortingExceptionFilter、予期しない障害はNest標準 | toSortingCandidatesResponse、toArticleListItem |
 | PUT /api/sorting/interest-batches/:batchId | なし（UUID・本文はServiceのValidatorで確認） | SortingExceptionFilter | toInterestBatchResponse |
 | GET /api/sorting/interest-batches/:batchId | なし（UUIDはServiceのValidatorで確認） | SortingExceptionFilter、未記録はControllerが404 | toInterestBatchResponse |
