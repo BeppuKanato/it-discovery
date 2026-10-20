@@ -9,14 +9,6 @@ export interface ArticleStateUpdateRequest {
   change: ArticleStateChange;
 }
 
-// 旧フロントの型チェックを保つためだけに残す。新しいAPIはoperationIdを受け付けない。
-// フロントの直接保存への切り替え時に、この旧契約と利用箇所を削除する。
-/** @deprecated 新APIではArticleStateUpdateRequestを使う。 */
-export interface ArticleStateMutationRequest {
-  operationId: string;
-  change: ArticleStateChange;
-}
-
 // HTTPでDateオブジェクトは送れないため、日時はUTCのISO文字列にする。
 export interface ArticleStateValue {
   interested: boolean;
@@ -28,13 +20,3 @@ export interface ArticleStateResponse {
   articleId: number;
   state: ArticleStateValue;
 }
-
-// 旧フロント専用の応答型。新APIはArticleStateResponse、記事なしは404を返す。
-/** @deprecated 新APIではArticleStateResponseを使う。 */
-export type ArticleStateOperationResponse = {
-  operationId: string;
-  articleId: number;
-} & (
-  | { status: 'saved'; state: ArticleStateValue }
-  | { status: 'missing'; state: null }
-);

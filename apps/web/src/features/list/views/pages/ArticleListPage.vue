@@ -1,21 +1,22 @@
 <script setup lang="ts">
-import { onUnmounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
+import Message from 'primevue/message';
 import type { ArticleListKind } from '@it-discovery/contracts';
 import { useArticleListViewModel } from '../../view-models/useArticleListViewModel';
 import type { ArticleListModel } from '../../models/article-list.model';
-import type { ArticleChangeViewActions } from '../../../article-changes/models/article-change-contracts';
+import type { ArticleStateModel } from '../../../articles/models/article-state.model';
 import type { PullGestureInput } from '../../models/pull-to-refresh-gesture';
 import ArticleListLayout from '../templates/ArticleListLayout.vue';
 import ArticleListToolbar from '../organisms/ArticleListToolbar.vue';
 import ArticleListContent from '../organisms/ArticleListContent.vue';
-import ArticleSyncStatus from '../organisms/ArticleSyncStatus.vue';
 
-// Page：ViewModelと表示部品の接続場所。Store・同期サービスの内部を直接変更しない。
-const props = defineProps<{ listModel: ArticleListModel; articleChanges: ArticleChangeViewActions }>();
-const vm = useArticleListViewModel(props.listModel, props.articleChanges);
-const { selectedKind, displayedArticles, hasMore, listLoading, listError, syncDisplay, refreshArticles, loadMoreArticles, retryArticleLoad,
-  togglePin, toggleInterest, retrySync, discardBlocked,
+// Pageは表示開始・終了とブラウザ入力をVMへ伝える。初回取得はAppでなくここから始める。
+const props = defineProps<{ listModel: ArticleListModel; stateModel: ArticleStateModel }>();
+const vm = useArticleListViewModel(props.listModel, props.stateModel);
+const { articles, selectedKind, hasMore, listLoading, listError, notice, savingByArticle, saveErrors,
+  refreshArticles, loadMoreArticles, retryArticleLoad, togglePin, toggleInterest, retryStateCheck,
   pullDistance, pullReady, finishPull, cancelPull } = vm;
+onMounted(() => { void vm.initialize(); });
 onUnmounted(() => { vm.dispose(); });
 
 function selectKind(value: ArticleListKind): void {
@@ -50,20 +51,20 @@ function touchMove(event: TouchEvent): void {
       <p class="intro-description">{{ selectedKind === 'all' ? 'ひとつの出会いが、次のアイデアに。' : 'あとで読みたい発見を、ひとつの場所に。' }}</p>
     </template>
     <template #toolbar>
-      <ArticleListToolbar :kind="selectedKind" :count="displayedArticles.length" :refreshing="listLoading === 'refresh'"
-        :disabled="!syncDisplay.startupSyncComplete" :busy="listLoading === 'initial' || listLoading === 'refresh'" @select="selectKind" @refresh="refreshArticles" />
+      <ArticleListToolbar :kind="selectedKind" :count="articles.length" :refreshing="listLoading === 'refresh'"
+        :disabled="false" :busy="listLoading === 'initial' || listLoading === 'refresh'" @select="selectKind" @refresh="refreshArticles" />
     </template>
     <template #status>
-      <ArticleSyncStatus :status="syncDisplay" @retry="retrySync" @discard="discardBlocked" />
+      <Message v-if="notice" severity="info" :closable="false" role="status">{{ notice }}</Message>
     </template>
     <!-- 名前なしの内容はLayoutの通常のslotへ入る。子のemitとVMの操作をここで接続する。 -->
     <div class="pull-status" :style="{ height: `${listLoading === 'refresh' ? 40 : pullDistance}px` }" role="status">
       <span v-if="listLoading === 'refresh'">一覧を更新しています…</span>
       <span v-else-if="pullDistance > 0">{{ pullReady ? '離して更新' : '↓ 下に引いて更新' }}</span>
     </div>
-    <ArticleListContent :articles="displayedArticles" :kind="selectedKind" :initial-loading="!syncDisplay.startupSyncComplete || listLoading === 'initial'"
-      :loading="listLoading !== null" :has-more="hasMore" :error="listError?.message ?? null" :actions-disabled="!syncDisplay.canChangeArticles"
-      @pin="togglePin" @interest="toggleInterest" @more="loadMoreArticles" @retry="retryArticleLoad" />
+    <ArticleListContent :articles="articles" :kind="selectedKind" :initial-loading="listLoading === 'initial'"
+      :loading="listLoading !== null" :has-more="hasMore" :error="listError?.message ?? null" :saving-by-article="savingByArticle" :save-errors="saveErrors"
+      @pin="togglePin" @interest="toggleInterest" @more="loadMoreArticles" @retry="retryArticleLoad" @check-state="retryStateCheck" />
     <template #footer><p class="page-footnote">小さな発見を、毎日に。</p></template>
   </ArticleListLayout>
 </template>
