@@ -4,6 +4,8 @@
 
 [READMEに戻る](../README.md) · [クラス図](classes.md) · [ルール](rules.md) · [画面構成の参照](ui-reference.md) · [開発一覧](https://github.com/BeppuKanato/it-discovery/issues/1)
 
+> 2026-10-20：バックエンドの記事状態保存は[直接保存API](article-state-api.md)へ変更。以下のフロント同期・起動構成は後続修正前の実装を示す。
+
 ## この資料の位置付け
 
 Issue #2で、合意した技術選定とクラス図を実際のコード配置へ対応付けた。Issue #5でVue・Nest・共有型・Axiosの疎通確認基盤を追加した。[起動・設定・ビルド手順](development.md)を参照する。以下の配置には、後続Issueで実装するファイルも含む。
@@ -100,7 +102,6 @@ apps/
         controllers/
           articles.controller.ts    # 一覧取得のHTTP入口
           article-state.controller.ts
-          article-state-operation.controller.ts
           sorting.controller.ts
           pipes/
             article-page-query.pipe.ts # HTTPパラメータの形式を確認
@@ -126,7 +127,7 @@ apps/
           sqlite-article-interest-batch.repository.ts
         validators/
           article-id.validator.ts   # PipeとServiceで共有するID検証
-          article-state-operation.validator.ts
+          article-state-change.validator.ts
           article-sorting.validator.ts
         models/
           article.ts
