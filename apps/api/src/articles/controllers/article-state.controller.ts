@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Header, Inject, NotFoundException, Param, Put, UseFilters } from '@nestjs/common';
-import type { ArticleStateOperationResponse, ArticleStateResponse } from '@it-discovery/contracts';
+import type { ArticleStateResponse } from '@it-discovery/contracts';
 import { ArticleStateService } from '../services/article-state.service';
 import { ArticleIdPipe } from './pipes/article-id.pipe';
 import { ArticleStateExceptionFilter } from './filters/article-state-exception.filter';
-import { toStateOperationResponse, toStateValue } from './formatters/article-state.formatter';
+import { toStateValue } from './formatters/article-state.formatter';
 
-// このControllerは記事ごとの状態の入口。操作結果の照会は別Controllerへ分ける。
+// 記事の現在状態の取得と、指定した項目の保存だけを受け付ける。
 @Controller('articles/:articleId/state')
 @UseFilters(ArticleStateExceptionFilter)
 export class ArticleStateController {
@@ -19,10 +19,13 @@ export class ArticleStateController {
     return { articleId, state: toStateValue(state) };
   }
 
-  // @BodyはJSON本文を渡す。unknownのまま共通の入力検証へ送り、型を決めつけない。
+  // @Bodyで受けたJSONはunknownのままServiceの共通検証へ渡す。
+  // 成功応答は現在状態のGETと同じ形式。存在しない記事への変更は404とする。
   @Put()
   @Header('Cache-Control', 'no-store')
-  apply(@Param('articleId', ArticleIdPipe) articleId: number, @Body() body: unknown): ArticleStateOperationResponse {
-    return toStateOperationResponse(this.service.apply(articleId, body));
+  apply(@Param('articleId', ArticleIdPipe) articleId: number, @Body() body: unknown): ArticleStateResponse {
+    const state = this.service.apply(articleId, body);
+    if (!state) throw new NotFoundException({ code: 'ARTICLE_NOT_FOUND', message: '記事は保持されていません。' });
+    return { articleId, state: toStateValue(state) };
   }
 }

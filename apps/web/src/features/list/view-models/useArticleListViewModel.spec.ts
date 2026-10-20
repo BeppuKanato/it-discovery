@@ -1,80 +1,140 @@
-import { createPinia } from 'pinia';
 import { describe, expect, it, vi } from 'vitest';
-import type { ArticlePageResponse } from '@it-discovery/contracts';
-import type { ArticleListApi } from '../models/article-list-api';
-import { useArticleDataStore } from '../../articles/models/article-data.store';
-import { useArticleChangeStore } from '../../article-changes/models/article-change.store';
-import { page } from '../../../test/article-fixture';
-import { createArticleListModel } from '../models/article-list.model';
+import type { ArticlePageResponse, ArticleStateValue } from '@it-discovery/contracts';
+import { ArticleListModel } from '../models/article-list.model';
+import { ArticleStateModel } from '../../articles/models/article-state.model';
+import { ApiError } from '../../../infrastructure/api/api-error';
+import { article, page } from '../../../test/article-fixture';
+import { useArticleListViewModel } from './useArticleListViewModel';
+
 function deferred<T>() {
-  let resolve!: (value: T) => void; let reject!: (reason: Error) => void;
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
-import { useArticleListViewModel } from './useArticleListViewModel';
-describe('ViewModelの入力とModelへの接続', () => {
-  it('座標をModelへ渡し、成立時だけ更新して表示用の距離を戻す', async () => {
-    const getArticlePage = vi.fn().mockResolvedValue(page([1]));
-    const list = createList({ getArticlePage });
-    const touch = { x: 20, y: 20, atTop: true, touchCount: 1, onControl: false };
-    list.beginPull(touch);
-    list.movePull({ ...touch, y: 100 });
-    expect(list.pullDistance.value).toBe(36);
-    expect(list.pullReady.value).toBe(false);
-    await list.finishPull();
+function setup() {
+  const getArticlePage = vi.fn().mockResolvedValue(page([2, 1], 'next'));
+  const updateArticleState = vi.fn(); const getArticleState = vi.fn();
+  const vm = useArticleListViewModel(new ArticleListModel({ getArticlePage }), new ArticleStateModel({ updateArticleState, getArticleState }));
+  return { vm, getArticlePage, updateArticleState, getArticleState };
+}
+const saved = (state: Partial<ArticleStateValue> = {}) => ({ articleId: 1, state: { ...article(1).state, ...state } });
+
+describe('一覧画面の状態と操作', () => {
+  it('生成だけでは取得せず、ページ初期化で20件要求する。一度だけ初期化する', async () => {
+    const { vm, getArticlePage } = setup();
     expect(getArticlePage).not.toHaveBeenCalled();
-    list.beginPull(touch);
-    expect(list.movePull({ ...touch, y: 200 })).toBe(true);
-    expect(list.pullReady.value).toBe(true);
-    await list.finishPull();
-    await list.finishPull();
-    expect(getArticlePage).toHaveBeenCalledTimes(1);
-    expect(list.pullDistance.value).toBe(0);
+    const pending = vm.initialize(); expect(vm.listLoading.value).toBe('initial');
+    await pending; await vm.initialize();
+    expect(getArticlePage).toHaveBeenCalledExactlyOnceWith({ kind: 'all', limit: 20 }, expect.any(AbortSignal));
+    expect(vm.articles.value.map(a => a.articleId)).toEqual([2, 1]);
+    expect(vm.hasMore.value).toBe(true);
   });
-
-  it('取得中・起動待機・画面終了後はジェスチャーから更新しない', async () => {
-    const pending = deferred<ArticlePageResponse>();
-    const getArticlePage = vi.fn().mockReturnValue(pending.promise);
-    const list = createList({ getArticlePage });
-    const touch = { x: 0, y: 0, atTop: true, touchCount: 1, onControl: false };
-    const first = list.refreshArticles();
-    list.beginPull(touch);
-    list.movePull({ ...touch, y: 200 });
-    await list.finishPull();
-    expect(getArticlePage).toHaveBeenCalledTimes(1);
-    pending.resolve(page([1])); await first;
-    list.beginPull(touch); list.movePull({ ...touch, y: 200 });
-    list.dispose();
-    expect(list.pullDistance.value).toBe(0);
-    list.beginPull(touch); list.movePull({ ...touch, y: 200 });
-    expect(list.pullDistance.value).toBe(0);
-    await list.finishPull();
-    expect(getArticlePage).toHaveBeenCalledTimes(1);
-    const waitingApi = { getArticlePage: vi.fn() };
-    const waiting = createList(waitingApi, false);
-    waiting.beginPull(touch); waiting.movePull({ ...touch, y: 200 }); await waiting.finishPull();
-    expect(waitingApi.getArticlePage).not.toHaveBeenCalled();
+  it('追加取得は現在のカーソルを使い、重複取得を防ぎ、記事の重複を除く', async () => {
+    const { vm, getArticlePage } = setup(); await vm.initialize();
+    const later = deferred<ArticlePageResponse>(); getArticlePage.mockReturnValueOnce(later.promise);
+    const loading = vm.loadMoreArticles(); await vm.loadMoreArticles();
+    expect(vm.listLoading.value).toBe('append'); expect(getArticlePage).toHaveBeenCalledTimes(2);
+    expect(getArticlePage.mock.calls[1]![0]).toEqual({ kind: 'all', limit: 20, cursor: 'next' });
+    later.resolve(page([1, 0])); await loading;
+    expect(vm.articles.value.map(a => a.articleId)).toEqual([2, 1, 0]); expect(vm.hasMore.value).toBe(false);
   });
-
-  it('タブ切り替えとタッチ中止では途中の操作を破棄する', async () => {
-    const getArticlePage = vi.fn().mockResolvedValue(page([]));
-    const list = createList({ getArticlePage });
-    const touch = { x: 0, y: 0, atTop: true, touchCount: 1, onControl: false };
-    list.beginPull(touch); list.movePull({ ...touch, y: 200 }); list.cancelPull();
-    await list.finishPull(); expect(getArticlePage).not.toHaveBeenCalled();
-    list.beginPull(touch); list.movePull({ ...touch, y: 200 });
-    await list.changeListKind('interested');
-    expect(list.pullDistance.value).toBe(0);
-    await list.finishPull(); expect(getArticlePage).toHaveBeenCalledTimes(1);
+  it('フィルターを変えると取得し直し、古いフィルターの遅い応答を捨てる', async () => {
+    const { vm, getArticlePage } = setup(); const old = deferred<ArticlePageResponse>();
+    getArticlePage.mockReturnValueOnce(old.promise);
+    const first = vm.initialize();
+    getArticlePage.mockResolvedValueOnce({ ...page([3], 'filtered'), articles: [{ ...article(3), state: { ...article(3).state, interested: true } }] });
+    await vm.changeListKind('interested'); old.resolve(page([9])); await first;
+    expect(vm.articles.value.map(a => a.articleId)).toEqual([3]);
+    getArticlePage.mockResolvedValueOnce(page([])); await vm.loadMoreArticles();
+    expect(getArticlePage.mock.lastCall?.[0]).toEqual({ kind: 'interested', limit: 20, cursor: 'filtered' });
+    expect((getArticlePage.mock.calls[0]![1] as AbortSignal).aborted).toBe(true);
+  });
+  it.each(['initial', 'refresh', 'append'] as const)('%s失敗の再試行は同じ取得条件を使い、既存記事を保持する', async mode => {
+    const { vm, getArticlePage } = setup();
+    if (mode !== 'initial') await vm.initialize();
+    getArticlePage.mockRejectedValueOnce(new Error('offline'));
+    await (mode === 'initial' ? vm.initialize() : mode === 'refresh' ? vm.refreshArticles() : vm.loadMoreArticles());
+    expect(vm.listError.value?.mode).toBe(mode);
+    expect(vm.articles.value.length).toBe(mode === 'initial' ? 0 : 2);
+    getArticlePage.mockResolvedValueOnce(page([1])); await vm.retryArticleLoad();
+    expect(getArticlePage.mock.lastCall?.[0]).toEqual({ kind: 'all', limit: 20, ...(mode === 'append' ? { cursor: 'next' } : {}) });
+    expect(vm.listError.value).toBeNull();
+  });
+  it('保存成功まで登録値を変えず、同じ記事の二重操作だけを防ぐ', async () => {
+    const { vm, updateArticleState } = setup(); await vm.initialize();
+    const wait = deferred<ReturnType<typeof saved>>(); updateArticleState.mockReturnValueOnce(wait.promise).mockResolvedValueOnce({ ...saved(), articleId: 2 });
+    const saving = vm.togglePin(1);
+    expect(vm.savingByArticle.get(1)).toBe('pinned'); expect(vm.articles.value.find(a => a.articleId === 1)?.state.pinned).toBe(false);
+    await vm.toggleInterest(1); expect(updateArticleState).toHaveBeenCalledTimes(1);
+    await vm.toggleInterest(2); expect(updateArticleState).toHaveBeenCalledTimes(2);
+    wait.resolve(saved({ pinned: true })); await saving;
+    expect(vm.articles.value.find(a => a.articleId === 1)?.state.pinned).toBe(true); expect(vm.savingByArticle.size).toBe(0);
+    expect(updateArticleState.mock.calls[0]!.slice(0, 2)).toEqual([1, { change: { kind: 'pinned', value: true } }]);
+  });
+  it('保存拒否では元の登録値を残し、GETや自動再送をしない', async () => {
+    const { vm, updateArticleState, getArticleState } = setup(); await vm.initialize();
+    updateArticleState.mockRejectedValue(new ApiError(403)); await vm.togglePin(1);
+    expect(vm.articles.value.find(a => a.articleId === 1)?.state.pinned).toBe(false);
+    expect(vm.saveErrors.get(1)?.uncertain).toBe(false); expect(getArticleState).not.toHaveBeenCalled();
+    expect(updateArticleState).toHaveBeenCalledTimes(1);
+  });
+  it('保存結果不明ならGETを一度だけ行い、失敗時は手動確認まで操作を止める', async () => {
+    const { vm, updateArticleState, getArticleState } = setup(); await vm.initialize();
+    updateArticleState.mockRejectedValue(new ApiError(500)); getArticleState.mockRejectedValueOnce(new ApiError());
+    await vm.togglePin(1); expect(vm.saveErrors.get(1)?.uncertain).toBe(true);
+    await vm.togglePin(1); expect(updateArticleState).toHaveBeenCalledTimes(1); expect(getArticleState).toHaveBeenCalledTimes(1);
+    getArticleState.mockResolvedValueOnce(saved({ pinned: true })); await vm.retryStateCheck(1);
+    expect(getArticleState).toHaveBeenCalledTimes(2); expect(updateArticleState).toHaveBeenCalledTimes(1);
+    expect(vm.articles.value.find(a => a.articleId === 1)?.state.pinned).toBe(true); expect(vm.saveErrors.get(1)?.uncertain).toBe(false);
+  });
+  it('404なら記事を除き、遅れて届いた一覧にも復活させない', async () => {
+    const { vm, getArticlePage, updateArticleState } = setup(); await vm.initialize();
+    const wait = deferred<ArticlePageResponse>(); getArticlePage.mockReturnValueOnce(wait.promise);
+    const refresh = vm.refreshArticles(); updateArticleState.mockRejectedValue(new ApiError(404)); await vm.togglePin(1);
+    wait.resolve(page([1, 2])); await refresh;
+    expect(vm.articles.value.map(a => a.articleId)).toEqual([2]); expect(vm.notice.value).toContain('存在しない');
+  });
+  it('気になる一覧からの登録解除は成功してから記事を取り除く', async () => {
+    const { vm, getArticlePage, updateArticleState } = setup(); await vm.initialize();
+    getArticlePage.mockResolvedValueOnce({ ...page([1]), articles: [{ ...article(1), state: { ...article(1).state, interested: true } }] });
+    await vm.changeListKind('interested');
+    const wait = deferred<ReturnType<typeof saved>>(); updateArticleState.mockReturnValueOnce(wait.promise);
+    const saving = vm.toggleInterest(1); expect(vm.articles.value.length).toBe(1);
+    wait.resolve(saved()); await saving; expect(vm.articles.value.length).toBe(0);
+  });
+  it('保存より前に開始した一覧応答で成功済み状態を戻さない', async () => {
+    const { vm, getArticlePage, updateArticleState } = setup(); await vm.initialize();
+    const wait = deferred<ArticlePageResponse>(); getArticlePage.mockReturnValueOnce(wait.promise);
+    const refresh = vm.refreshArticles(); updateArticleState.mockResolvedValueOnce(saved({ pinned: true })); await vm.togglePin(1);
+    wait.resolve(page([1])); await refresh; expect(vm.articles.value[0]!.state.pinned).toBe(true);
+    getArticlePage.mockResolvedValueOnce(page([1])); await vm.refreshArticles(); expect(vm.articles.value[0]!.state.pinned).toBe(false);
+  });
+  it('保存待ちの一覧応答でも登録値を先取りしない', async () => {
+    const { vm, getArticlePage, updateArticleState } = setup(); await vm.initialize();
+    const wait = deferred<ReturnType<typeof saved>>(); updateArticleState.mockReturnValueOnce(wait.promise);
+    const saving = vm.togglePin(1);
+    getArticlePage.mockResolvedValueOnce({ ...page([1]), articles: [{ ...article(1), state: saved({ pinned: true }).state }] });
+    await vm.refreshArticles(); expect(vm.articles.value[0]!.state.pinned).toBe(false);
+    wait.resolve(saved({ pinned: true })); await saving; expect(vm.articles.value[0]!.state.pinned).toBe(true);
+  });
+  it('保存中のフィルター切り替えでも未確定の登録値を先取りしない', async () => {
+    const { vm, getArticlePage, updateArticleState } = setup(); await vm.initialize();
+    const wait = deferred<ReturnType<typeof saved>>(); updateArticleState.mockReturnValueOnce(wait.promise);
+    const saving = vm.toggleInterest(1);
+    getArticlePage.mockResolvedValueOnce({ ...page([1]), articles: [{ ...article(1), state: saved({ interested: true }).state }] });
+    await vm.changeListKind('interested'); expect(vm.articles.value.length).toBe(0);
+    wait.resolve(saved({ interested: true })); await saving;
+    expect(vm.articles.value[0]?.state.interested).toBe(true);
+  });
+  it('ページ終了で通信を中止し、遅い応答から状態を書き換えない', async () => {
+    const { vm, getArticlePage, updateArticleState } = setup(); await vm.initialize();
+    const list = deferred<ArticlePageResponse>(); const save = deferred<ReturnType<typeof saved>>();
+    getArticlePage.mockReturnValueOnce(list.promise); updateArticleState.mockReturnValueOnce(save.promise);
+    const refreshing = vm.refreshArticles(); const saving = vm.togglePin(1); vm.dispose();
+    expect((getArticlePage.mock.lastCall?.[1] as AbortSignal).aborted).toBe(true);
+    expect((updateArticleState.mock.lastCall?.[2] as AbortSignal).aborted).toBe(true);
+    list.resolve(page([9])); save.resolve(saved({ pinned: true })); await Promise.all([refreshing, saving]);
+    expect(vm.articles.value.map(a => a.articleId)).toEqual([2, 1]); expect(vm.articles.value[1]!.state.pinned).toBe(false);
   });
 });
-function createList(api: ArticleListApi, startupComplete = true) {
-  const pinia = createPinia(); const changes = useArticleChangeStore(pinia);
-  changes.updateSyncStatus({ startupSyncComplete: startupComplete, storageRestored: startupComplete });
-  const model = createArticleListModel(api, useArticleDataStore(pinia), changes);
-  return useArticleListViewModel(model, {
-    getSyncDisplay: () => ({ ...changes.syncStatus, canChangeArticles: changes.canChangeArticles,
-      unfinishedCount: changes.unfinishedCount, blockedCount: changes.blockedCount }),
-    toggleArticleField: vi.fn(), retryUnfinishedChanges: vi.fn(), discardBlockedChanges: vi.fn(),
-  });
-}

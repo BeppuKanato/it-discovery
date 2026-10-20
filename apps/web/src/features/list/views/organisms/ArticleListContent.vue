@@ -10,9 +10,11 @@ import ArticleCard from '../../../../components/organisms/ArticleCard.vue';
 // 記事やカーソルを保持しない。取得したいタイミングと記事操作を親へ通知するだけ。
 const props = defineProps<{
   articles: readonly ArticleListItem[]; kind: ArticleListKind; initialLoading: boolean;
-  loading: boolean; hasMore: boolean; error: string | null; actionsDisabled: boolean;
+  loading: boolean; hasMore: boolean; error: string | null;
+  savingByArticle: ReadonlyMap<number, 'pinned' | 'interested' | 'checking'>;
+  saveErrors: ReadonlyMap<number, { message: string; uncertain: boolean }>;
 }>();
-const emit = defineEmits<{ pin: [articleId: number]; interest: [articleId: number]; more: []; retry: [] }>();
+const emit = defineEmits<{ pin: [articleId: number]; interest: [articleId: number]; more: []; retry: []; checkState: [articleId: number] }>();
 const sentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 onMounted(() => {
@@ -22,8 +24,11 @@ onMounted(() => {
   }, { rootMargin: '240px 0px' });
   if (sentinel.value) observer.observe(sentinel.value);
 });
-// 条件付き描画で末尾のDOMが入れ替わるため、新しい要素へ監視を付け直す。
-watch(sentinel, (element) => { observer?.disconnect(); if (element) observer?.observe(element); });
+// DOMの入れ替えと取得終了時に監視を付け直す。末尾が画面内に残る場合も次の取得を通知できる。
+watch([sentinel, () => props.loading, () => props.hasMore, () => props.error], ([element]) => {
+  observer?.disconnect();
+  if (element) observer?.observe(element);
+});
 onUnmounted(() => observer?.disconnect());
 </script>
 
@@ -38,8 +43,14 @@ onUnmounted(() => observer?.disconnect());
       <!-- v-forの繰り返し範囲は、このliの開始から終了まで。articleは各回の記事1件。
            子カードの通知にIDを付けることで、Pageは対象の記事を指定してVMを呼べる。 -->
       <li v-for="article in articles" :key="article.articleId">
-        <ArticleCard :article="article" editable :actions-disabled="actionsDisabled"
+        <ArticleCard :article="article" editable :pending="savingByArticle.get(article.articleId)"
+          :actions-disabled="!!saveErrors.get(article.articleId)?.uncertain"
           @pin="emit('pin', article.articleId)" @interest="emit('interest', article.articleId)" />
+        <div v-if="saveErrors.has(article.articleId)" class="save-error" role="status">
+          <p>{{ saveErrors.get(article.articleId)?.message }}</p>
+          <Button v-if="saveErrors.get(article.articleId)?.uncertain" type="button" label="状態を確認" text size="small"
+            :disabled="savingByArticle.has(article.articleId)" @click="emit('checkState', article.articleId)" />
+        </div>
       </li>
     </ul>
     <section v-else-if="!error && !hasMore" class="empty-state">
@@ -63,6 +74,8 @@ onUnmounted(() => observer?.disconnect());
 <style scoped>
 .article-grid { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
 .article-grid li { min-width: 0; }
+.save-error { padding: 8px 12px; color: var(--p-discovery-muted); font-size: 12px; line-height: 1.7; }
+.save-error p { margin: 0; }
 .skeleton-card { padding: 8px; border: 1px solid var(--p-discovery-line); border-radius: 22px; background: var(--p-discovery-paper); }
 .skeleton-date { margin: 17px 10px 9px; }
 .empty-state { padding: 49px 12px 60px; text-align: center; }

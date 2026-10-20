@@ -8,7 +8,7 @@ import { articleCardTokens } from '../../app/ui-theme';
 import SourceBadge from '../molecules/SourceBadge.vue';
 
 // definePropsは親から受け取る値の型を宣言するVueの機能。article自体はこの部品で変更しない。
-const props = defineProps<{ article: ArticleListItem; editable?: boolean; actionsDisabled?: boolean }>();
+const props = defineProps<{ article: ArticleListItem; editable?: boolean; actionsDisabled?: boolean; pending?: 'pinned' | 'interested' | 'checking' }>();
 // defineEmitsは親へ通知するイベントの型を宣言する。DB保存は親へ任せ、この部品は表示を担当する。
 const emit = defineEmits<{ interest: []; pin: [] }>();
 // useIdは部品ごとに異なるIDを作る。同じカードを複数並べても見出しのIDが衝突しない。
@@ -52,11 +52,13 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
           <!-- :classの{ expanded }は、expandedがtrueのときだけ同名のCSSクラスを付ける。 -->
           <div class="thumbnail" :class="{ expanded }">
             <!-- .stopはクリックが親へ伝わるのを止め、元記事を開く操作と分離する。
-                 aria-pressedは押し込み状態を示す。送信中も押せるため最後の希望まで操作できる。 -->
-            <Button v-if="editable" type="button" text rounded class="pin-action" :class="{ selected: article.state.pinned }"
-              :aria-label="article.state.pinned ? 'ピン止めを解除' : 'ピン止めする'" :aria-pressed="article.state.pinned"
-              :disabled="actionsDisabled" @click.stop="emit('pin')">
-              <template #icon><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 3 6 6-4 1-3 5-2-2-6 6-1-1 6-6-2-2 5-3z" /></svg></template>
+                 aria-pressedは押し込み状態を示す。通信中は同じ記事の変更を止め、成功後に登録状態を確定する。 -->
+            <Button v-if="editable" type="button" text rounded class="pin-action" :class="{ selected: article.state.pinned && pending !== 'pinned' && pending !== 'checking', pending: pending === 'pinned' || pending === 'checking' }"
+              :aria-label="pending === 'checking' ? 'ピンの状態を確認中' : pending === 'pinned' ? 'ピンの変更を保存中' : article.state.pinned ? 'ピン止めを解除' : 'ピン止めする'" :aria-busy="pending === 'pinned' || pending === 'checking'" :aria-pressed="article.state.pinned"
+              :disabled="actionsDisabled || !!pending" @click.stop="emit('pin')">
+              <template #icon><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><defs><clipPath :id="`${titleId}-pin-fill`"><rect x="0" y="16" width="24" height="8" /></clipPath></defs>
+                <path d="m15 3 6 6-4 1-3 5-2-2-6 6-1-1 6-6-2-2 5-3z" :fill="article.state.pinned && pending !== 'pinned' && pending !== 'checking' ? 'currentColor' : 'none'" />
+                <path v-if="pending === 'pinned' || pending === 'checking'" d="m15 3 6 6-4 1-3 5-2-2-6 6-1-1 6-6-2-2 5-3z" fill="currentColor" :clip-path="`url(#${titleId}-pin-fill)`" /></svg></template>
             </Button>
             <Tag v-else-if="article.state.pinned" value="ピン止め" severity="secondary" rounded class="pin-state" />
             <div ref="copy" class="article-copy">
@@ -85,11 +87,13 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
           </div>
           <div class="states">
             <span v-if="article.state.lastOpenedAt" class="read-state">既読</span>
-            <Button v-if="editable" type="button" size="small" rounded :text="!article.state.interested"
+            <Button v-if="editable" type="button" size="small" rounded :text="!article.state.interested || pending === 'interested' || pending === 'checking'"
               :label="article.state.interested ? '気になる登録済み' : '気になる'"
-              :aria-label="article.state.interested ? '気になるを解除' : '気になるに登録'" :aria-pressed="article.state.interested"
-              :disabled="actionsDisabled" class="interest-action" @click.stop="emit('interest')">
-              <template #icon><svg viewBox="0 0 24 24" width="15" height="15" :fill="article.state.interested ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z" /></svg></template>
+              :aria-label="pending === 'checking' ? '気になるの状態を確認中' : pending === 'interested' ? '気になるの変更を保存中' : article.state.interested ? '気になるを解除' : '気になるに登録'" :aria-busy="pending === 'interested' || pending === 'checking'" :aria-pressed="article.state.interested"
+              :disabled="actionsDisabled || !!pending" :class="{ pending: pending === 'interested' || pending === 'checking' }" class="interest-action" @click.stop="emit('interest')">
+              <template #icon><svg viewBox="0 0 24 24" width="15" height="15" :fill="article.state.interested && pending !== 'interested' && pending !== 'checking' ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><defs><clipPath :id="`${titleId}-interest-fill`"><rect x="0" y="16" width="24" height="8" /></clipPath></defs>
+                <path d="M6 4h12v17l-6-4-6 4z" />
+                <path v-if="pending === 'interested' || pending === 'checking'" d="M6 4h12v17l-6-4-6 4z" fill="currentColor" :clip-path="`url(#${titleId}-interest-fill)`" /></svg></template>
             </Button>
             <Tag v-else-if="article.state.interested" value="気になる" severity="success" rounded />
           </div>
@@ -108,6 +112,8 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
 .pin-state { position: absolute; top: 10px; left: 12px; font-size: 10px; }
 .pin-action { position: absolute; top: 5px; left: 7px; width: 44px; height: 44px; color: var(--p-discovery-muted); }
 .pin-action.selected { color: var(--p-primary-color); background: var(--p-primary-50); }
+/* 部分着色は進捗率ではなく保存待ちの印。位置・大きさを変えず、スピナーも使わない。 */
+.pin-action.pending, .interest-action.pending { color: var(--p-primary-color); background: var(--p-primary-50); opacity: 1; }
 .interest-action { min-height: 38px; font-size: 10px; padding: 7px 10px; }
 .article-copy { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 161px; padding: 8px 3px 16px; text-align: center; }
 h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; margin: 0; color: var(--p-discovery-ink); font-size: clamp(18px, 4.7vw, 22px); line-height: 1.55; letter-spacing: -.025em; overflow-wrap: anywhere; }

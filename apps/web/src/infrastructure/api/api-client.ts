@@ -1,69 +1,47 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
-import type { ArticlePageRequest, ArticlePageResponse, HealthResponse, ArticleStateMutationRequest, ArticleStateOperationResponse } from '@it-discovery/contracts';
+import type { ArticlePageRequest, ArticlePageResponse, ArticleStateUpdateRequest, ArticleStateResponse, HealthResponse } from '@it-discovery/contracts';
 import { isArticlePageResponse } from './article-page-response';
-import { isArticleStateOperationResponse } from './article-state-response';
-import { ArticleChangeRequestError } from '../../features/article-changes/models/article-change-contracts';
+import { isArticleStateResponse } from './article-state-response';
+import { ApiError } from './api-error';
 
-// 通信エラーや500は保存済みの可能性がある。400だけを入力拒否、認証・競合は要確認とする。
-function stateRequestError(error: unknown): ArticleChangeRequestError {
-  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-  if (status === 400) return new ArticleChangeRequestError('invalid', '変更が受け付けられなかったため、その変更を戻しました。');
-  if (status !== undefined && status >= 400 && status < 500 && ![408, 425, 429].includes(status)) {
-    return new ArticleChangeRequestError('blocked', '本人確認・操作内容を確認して再試行してください。未送信変更は残しています。');
-  }
-  return new ArticleChangeRequestError('temporary', '保存結果を確認しています。通信の復旧後に再試行します。');
-}
-
+// 通信設定・JSON検証だけを担当する。保存キュー・操作ID・自動再送は持たない。
 export class ApiClient {
   private readonly http: AxiosInstance;
-
   constructor(baseURL: string) {
-    // createで共通の接続先・待ち時間を持つAxiosインスタンスを作る。10秒を超えた通信は失敗扱い。
     this.http = axios.create({ baseURL, timeout: 10_000 });
   }
 
-  // 一覧の一ページを取得し、表示用の形式を確認する。
   async getArticlePage(request: ArticlePageRequest, signal?: AbortSignal): Promise<ArticlePageResponse> {
-    // unknownは受信JSONを未検証の値として扱う型。TypeScriptの型だけでは通信内容を保証できない。
-    // paramsはクエリ文字列へ、signalは通信を中止するためにAxiosへ渡す。
     const { data } = await this.http.get<unknown>('/articles', { params: request, signal });
-    if (!isArticlePageResponse(data, request.cursor)) {
-      throw new Error('一覧の応答を確認できませんでした。');
-    }
+    if (!isArticlePageResponse(data, request.cursor)) throw new Error('一覧の応答を確認できませんでした。');
     return data;
   }
 
-  // 反転ではなく、明示した値と同じ操作IDを送る。再送でも要求内容を変更しない。
-  async applyArticleState(articleId: number, request: ArticleStateMutationRequest, signal?: AbortSignal): Promise<ArticleStateOperationResponse> {
+  async updateArticleState(articleId: number, request: ArticleStateUpdateRequest, signal?: AbortSignal): Promise<ArticleStateResponse> {
     try {
       const { data } = await this.http.put<unknown>(`/articles/${articleId}/state`, request, { signal });
-      if (!isArticleStateOperationResponse(data, request.operationId, articleId)) throw new Error('操作結果が一致しません。');
+      if (!isArticleStateResponse(data, articleId)) throw new ApiError();
       return data;
-    } catch (error) { throw stateRequestError(error); }
+    } catch (error) { throw this.stateError(error); }
   }
 
-  // 404は「結果未記録」。元の保存要求が失敗したという意味にはしない。
-  async getArticleStateOperation(operationId: string, signal?: AbortSignal): Promise<ArticleStateOperationResponse | undefined> {
+  async getArticleState(articleId: number, signal?: AbortSignal): Promise<ArticleStateResponse> {
     try {
-      const { data } = await this.http.get<unknown>(`/article-state-operations/${operationId}`, { signal });
-      if (!isArticleStateOperationResponse(data, operationId)) throw new Error('操作結果が一致しません。');
+      const { data } = await this.http.get<unknown>(`/articles/${articleId}/state`, { signal });
+      if (!isArticleStateResponse(data, articleId)) throw new ApiError();
       return data;
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) return undefined;
-      const failure = stateRequestError(error);
-      // 照会の400は元のPUTの失敗を証明しない。変更を戻さず、要確認として残す。
-      throw failure.kind === 'invalid' ? new ArticleChangeRequestError('blocked', '保存結果を照会できません。変更を残して再確認してください。') : failure;
-    }
+    } catch (error) { throw this.stateError(error); }
   }
 
-  // 疎通確認の応答を取得して形式を確認する。
+  private stateError(error: unknown): ApiError {
+    return error instanceof ApiError ? error : new ApiError(axios.isAxiosError(error) ? error.response?.status : undefined);
+  }
+
   async getHealth(): Promise<HealthResponse> {
     const { data } = await this.http.get<unknown>('/health');
     if (!data || typeof data !== 'object' || !('status' in data) || data.status !== 'ok'
-      || !('message' in data) || typeof data.message !== 'string') {
-      throw new Error('サーバーの応答を確認できませんでした。');
-    }
+      || !('message' in data) || typeof data.message !== 'string') throw new Error('サーバーの応答を確認できませんでした。');
     return { status: data.status, message: data.message };
   }
 }

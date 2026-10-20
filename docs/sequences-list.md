@@ -1,290 +1,71 @@
 # シーケンス図：一覧の取得と状態変更
 
-更新日：2026-10-15
+更新日：2026-10-20
 
-[READMEに戻る](../README.md) · [ルール](rules.md) · [仕分けのシーケンス](sequences.md) · [状態遷移図](state-transitions.md) · [サーバーのシーケンス](sequences-server.md)
+[README](../README.md) · [フロントの構成](frontend-architecture.md) · [一覧操作](article-list-state.md) · [状態変更API](article-state-api.md)
 
-全記事一覧・気になる一覧は全件を一括取得せず、スクロールに応じて続きを取得する。登録・解除・ピン操作は画面へすぐ反映し、サーバーへ非同期で保存する。保存成功まで表示変更を待つ以前の案を、この方式に置き換える。
+一覧はページ表示開始で取得する。ピン・気になるは保存中の部分着色と操作制限を使い、成功後に登録状態を確定する。操作ID・永続保存・自動再送・起動同期の旧方式は撤去した。仕分けの端末保存・起動統合は後続Issue。
 
-図は責任と処理順を検討する設計資料であり、実装済みの挙動ではない。画面の状態管理・変更の送信管理は役割を表し、クラス名やAPI名は未確定。
-
-## 1. 一覧の初回表示・切り替え・更新
-
-起動時は、端末の未送信登録の同期が完了してから通常操作と一覧取得へ進む（SORT-18、[起動時の同期](sequences.md#4-起動時に残っている登録を同期してから操作を開始する)）。
-
-起動・一覧切り替え・下に引く更新では、対象の一覧の先頭を一定件数取得する。外部情報源への収集は呼ばない。更新成功後に表示済みの記事を置き換え、未確定の希望状態を重ねる。
+## 一覧取得
 
 ```mermaid
 sequenceDiagram
-    actor User as 利用者
-    participant View as 一覧画面
-    participant State as 一覧の状態管理
-    participant Server as サーバー
-    participant DB as DB
-
-    User->>View: 起動・一覧切り替え・下に引いて更新
-    View->>State: 対象の一覧を先頭から読み直す
-    State->>State: 要求を識別し、古い追加取得の反映を無効にする
-    State->>Server: 一覧の先頭を要求（種類・取得件数）
-    alt 全記事一覧
-        Server->>DB: 保持中の記事を一定件数取得<br/>取得日時が新しい順
-    else 気になる一覧
-        Server->>DB: 気になる登録済みの記事を一定件数取得<br/>取得日時が新しい順
-    end
-
-    alt 取得成功
-        DB-->>Server: 記事と登録・既読・ピン状態
-        Server-->>State: 記事・続きを指定するカーソル・続きの有無
-        alt 現在の一覧・更新要求への応答
-            State->>State: 記事とカーソルを置き換える
-            State->>State: 保存中の最新操作を表示状態に重ねる
-            State-->>View: 表示する一覧
-            View-->>User: 一覧を表示（0件なら空の表示）
-        else 古い要求への応答
-            State->>State: 表示へ反映しない
-        end
-    else 取得失敗
-        Server-->>State: 失敗または応答なし
-        State-->>View: 取得失敗（元の表示データは保持）
-        View-->>User: 取得できなかったことを表示
-    end
+  participant V as ArticleListPage
+  participant VM as 一覧VM
+  participant M as 一覧Model
+  participant API as ApiClientとサーバー
+  V->>VM: onMounted → initialize
+  VM->>VM: 初回取得中にする
+  VM->>M: getPage(all)
+  M->>API: GET articles / kind・limit20
+  API-->>M: articles・hasMore・nextCursor
+  M-->>VM: ページの取得結果
+  VM->>VM: 記事・カーソル・取得状態を更新
+  Note over V,VM: スケルトンから記事へ表示を切り替える
 ```
 
-ルール：UI-04、LIST-04〜08、COLLECT-02〜03。
+フィルター変更時は旧通信の中止と要求番号の更新を行い、新しい条件で先頭から取得する。末尾の240px手前でmoreイベントを受け、VMが現在のフィルターとカーソルで追加取得する。取得中の重複要求は出さない。成功時だけカーソルを進め、記事IDの重複を除く。
 
-カーソルは最後の記事の取得日時とDB内の記事IDを表し、一回20件を取得する。起動時は未送信登録の同期を完了し、日次の自動仕分けに進む場合はそちらを優先する。対象0件なら一覧へ進む。
+初回・更新・追加が失敗したら再試行ボタン。更新・追加の失敗は既存記事を保持する。取得日時・記事IDの降順で並べる。一覧更新はDBを読み直す処理で、外部情報源の収集を開始しない。
 
-取得日時の降順、同時刻はDB内の記事IDの降順とする。取得日時は再取得では変更しない。[data-policy](data-policy.md)に従う。
-
-## 2. スクロールで続きを取得する
-
-続きがあり、追加取得中でなければ取得する。同じ続きを重複して要求せず、成功したときだけカーソルを進める。
+## ピン・気になるの保存と失敗
 
 ```mermaid
 sequenceDiagram
-    actor User as 利用者
-    participant View as 一覧画面
-    participant State as 一覧の状態管理
-    participant Server as サーバー
-    participant DB as DB
-
-    User->>View: 一覧の下までスクロール
-    View->>State: 続きを読み込む
-    opt 続きあり、かつ追加取得中ではない
-        State->>State: 現在の一覧・カーソルを保持し取得中にする
-        State->>Server: 続きを要求（一覧の種類・カーソル・取得件数）
-        Server->>DB: 指定位置より後の記事を一定件数取得<br/>一覧の条件・取得日時の順を適用
-
-        alt 取得成功
-            DB-->>Server: 次の記事
-            Server-->>State: 記事・次のカーソル・続きの有無
-            alt 現在の一覧・更新要求への応答
-                State->>State: 記事IDで重複を除き末尾へ追加
-                State->>State: 保存中の最新操作を表示状態に重ねる
-                State->>State: カーソルと続きの有無を更新
-                State-->>View: 更新後の一覧
-                View-->>User: 続きの記事を表示
-            else 一覧切り替え・更新前の古い応答
-                State->>State: 表示へ反映しない
-            end
-        else 取得失敗
-            Server-->>State: 失敗または応答なし
-            State->>State: 表示済みの記事とカーソルを維持
-            State-->>View: 追加取得に失敗
-            View-->>User: 続きを取得できなかったことを表示
-        end
-        State->>State: 対応する要求の取得中状態を解除
+  participant V as カードとPage
+  participant VM as 一覧VM
+  participant M as 記事状態Model
+  participant API as ApiClientとサーバー
+  V->>VM: togglePin / toggleInterest
+  VM->>VM: 元の状態を保持し保存中にする
+  VM->>M: setField(id, field, 指定値)
+  M->>API: PUT articles/id/state
+  alt 保存成功
+    API-->>M: 確定状態
+    M-->>VM: 確定状態
+    VM->>VM: articlesへ反映
+  else 明確な拒否
+    API-->>M: 400・401・403・409・422
+    M-->>VM: rejected
+    VM->>VM: 状態を変えず失敗を表示
+  else 保存できたか不明
+    M-->>VM: uncertain
+    VM->>M: getStateを一度だけ依頼
+    M->>API: GET articles/id/state
+    alt 現在状態を取得できた
+      API-->>VM: Model経由で現在状態
+      VM->>VM: 現在状態へ合わせ確認した旨を表示
+    else 現在状態も取得不能
+      VM->>VM: 更新を止めて手動の状態確認を表示
     end
-    Note over View,State: 続きがなければ追加要求を出さない
+  end
+  VM->>VM: 保存中を解除
 ```
 
-ルール：LIST-06〜08。下に引いて更新すると図1の先頭取得へ戻る。新規記事をスクロール中の先頭へ自動挿入する処理はこの図に含めない。
+同じ記事の二つのボタンは保存中に無効化する。別の記事は独立して操作できる。気になる一覧での解除は成功してから記事を外す。404は削除済み通知を出して一覧から除く。
 
-カーソル方式を採用し、各ページは取得時点のDBを参照する。新着は一覧更新で表示し、途中削除や気になる条件の変更まで含む全件の固定表示は保証しない。保存中は未確定の希望状態を重ねる。[操作方針](operation-policy.md)に従う。
+更新要求を自動再送しない。GETで取得する現在状態は元のPUTの成功・失敗の証明ではない。ページを閉じる際に通信の中止を依頼するが、サーバー保存の取り消しは保証しない。次回起動では通常の一覧取得でサーバーを読む。
 
-## 3. 気になる登録・解除をすぐ画面に反映する
+## 元記事を開く・既読
 
-気になる一覧で解除した記事は、その場で一覧から外す。保存が失敗したと確定した場合は、最新の操作との関係を確認して表示を戻す。応答がないだけの場合は、保存されている可能性があるため直ちに戻さない。
-
-```mermaid
-sequenceDiagram
-    actor User as 利用者
-    participant View as 一覧画面
-    participant State as 一覧の状態管理
-    participant Sync as 端末保存と変更の送信管理
-    participant Server as サーバー
-    participant DB as DB
-
-    User->>View: 気になる登録または解除
-    View->>State: 記事の気になる状態を変更
-    State->>State: 直前の状態と今回の操作を記録
-    State->>State: 登録表示をすぐ変更<br/>気になる一覧で解除なら記事を外す
-    State-->>View: 更新後の一覧
-    View-->>User: 即座に反映
-    State->>Sync: 記事ID・変更先の状態・操作の識別情報を渡す
-    Sync->>Sync: operationIdと変更を順序どおり端末保存
-    Sync->>Server: operationIdと気になる状態を指定して非同期保存
-    Note over Sync,Server: 同じ記事の変更は順序を保つ<br/>同じ要求の再送で状態を反転させない
-
-    alt 保存成功
-        Server->>DB: 気になる状態だけを更新
-        DB-->>Server: 保存成功と確定状態
-        Server-->>Sync: 保存成功と確定状態
-        Sync->>State: 対応する操作の保存成功を通知
-        State->>State: 確定状態を更新<br/>新しい操作の表示は古い応答で上書きしない
-    else 保存失敗が確定
-        Server-->>Sync: 保存しなかったことを通知
-        Sync->>State: 対応する操作の失敗を通知
-        State->>State: 新しい操作がなければ表示を確定状態に戻す<br/>解除で外した記事も復元
-        State-->>View: 修正後の表示と失敗
-        View-->>User: 保存できなかったことを表示
-    else 保存できたか不明
-        Sync->>State: 応答未確認として扱う
-        Sync->>Server: operationIdの処理結果を確認
-        Server->>DB: 操作IDの処理結果を取得
-        DB-->>Server: 操作IDの処理結果
-        Server-->>Sync: 確認結果
-        Sync->>State: 確認結果を渡す
-        Note over State,Sync: 進行中の要求・新しい操作と照合する<br/>確認できなければ未確定を保ち、再確認・再送を検討
-    end
-```
-
-ルール：LIST-01〜03、09〜12。既読・ピン止めは変更しない。
-
-単に過去の一覧全体を保存して戻すと、他の記事への操作まで消してしまう。戻す対象は失敗した記事の気になる状態だけとし、解除した記事の復元位置も現在の並び順に合わせる。
-
-同じ記事を連続操作した場合、画面は最新の判断を即時表示する。サーバーにも最終的な判断が残るよう送信順を管理する。応答の表示だけを無視しても、サーバーで保存順が逆転すれば不整合になるため、送信の順序も必要。
-
-処理結果が未記録でも先行要求の失敗とは断定しない。同じ操作ID・同じ内容を再送し、確定するまで後続要求を送らない。成功確認した操作だけ端末から削除し、一覧の再取得には未確定の希望状態を重ねる。
-
-## 4. ピン止め・解除をすぐ画面に反映する
-
-ピン状態も楽観的に表示を変え、裏で保存する。ピン操作によって気になる状態や既読を変更しない。
-
-```mermaid
-sequenceDiagram
-    actor User as 利用者
-    participant View as 一覧画面
-    participant State as 一覧の状態管理
-    participant Sync as 端末保存と変更の送信管理
-    participant Server as サーバー
-    participant DB as DB
-
-    User->>View: ピンアイコンを押す
-    View->>State: 記事のピン状態を変更
-    State->>State: 直前の状態と今回の操作を記録
-    State->>State: ピン表示をすぐ変更
-    State-->>View: 更新後の表示
-    View-->>User: 即座に反映
-    State->>Sync: 記事ID・変更先の状態・操作の識別情報を渡す
-    Sync->>Sync: operationIdと変更を順序どおり端末保存
-    Sync->>Server: operationIdとピン状態を指定して非同期保存
-
-    alt 保存成功
-        Server->>DB: ピン状態だけを更新
-        DB-->>Server: 保存成功と確定状態
-        Server-->>Sync: 保存成功と確定状態
-        Sync->>State: 対応する操作の保存成功を通知
-        State->>State: 確定状態を更新<br/>新しい操作を古い応答で上書きしない
-    else 保存失敗が確定
-        Server-->>Sync: 保存しなかったことを通知
-        Sync->>State: 対応する操作の失敗を通知
-        State->>State: 新しい操作がなければピン表示を確定状態に戻す
-        State-->>View: 修正後の表示と失敗
-        View-->>User: 保存できなかったことを表示
-    else 保存できたか不明
-        Sync->>State: 応答未確認として扱う
-        Sync->>Server: operationIdの処理結果を確認
-        Server->>DB: 操作IDの処理結果を取得
-        DB-->>Server: 操作IDの処理結果
-        Server-->>Sync: 確認結果
-        Sync->>State: 確認結果を渡す
-        Note over State,Sync: 進行中の要求・新しい操作と照合する<br/>確認できなければ未確定を保つ
-    end
-```
-
-ルール：PIN-01〜03、LIST-09〜12。送信順・再送・古い応答の扱いは気になる操作と共通にする。
-
-画面上のピン表示が変わっても、サーバーの自動削除から保護されるのはDB保存後。解除しても気になる登録が残っていれば保護は続く。解除操作自体では削除せず、通常の削除判定に従う。
-
-## 5. 一覧から元記事を開き、既読を保存する
-
-記事を開く処理と既読の送信は、仕分けと共通の責任として扱う。画面へ戻る処理は一覧側が担当し、既読保存の完了を待たせない。通常のアプリへの復帰を描き、アプリ終了後の一覧位置の復元までは確定しない。
-
-```mermaid
-sequenceDiagram
-    actor User as 利用者
-    participant View as 一覧画面
-    participant State as 一覧の状態管理
-    participant Open as 外部を開く処理
-    participant Background as バックグラウンド送信
-    participant Server as サーバー
-    participant DB as DB
-
-    User->>View: 一覧の記事をタップ
-    View->>State: 記事ID・URLと一覧の表示位置を確認
-    State-->>View: 対象記事と戻り先
-    View->>Open: 元記事を開く
-    Note over View,Open: タブ作成と遷移依頼の受付を確認する<br/>外部サイトの表示成功は確認しない
-
-    alt タブ作成と遷移依頼を受け付けた
-        View->>State: 対象記事を表示上の既読にする
-        View->>Background: 記事IDと開いた日時の保存を依頼
-        Background-->>View: 依頼を受け付ける
-        par 一覧へ戻る
-            User->>View: アプリへ戻る
-            View->>State: 保持している一覧と表示位置を取得
-            State-->>View: 一覧と表示位置
-            View-->>User: 元の一覧を表示
-        and 既読を保存する
-            Background->>Background: 操作IDと変更を端末へ保存
-            Background->>Server: 開いた記事と日時を非同期で送信
-            Server->>DB: 既読と最後に開いた日時を更新
-            Note over Server,DB: 気になる・ピン止めは変更しない
-            alt 保存成功
-                DB-->>Server: 保存成功
-                Server-->>Background: 保存成功
-            else 保存失敗または応答不明
-                Server-->>Background: 失敗または応答なし
-                Note over Background,DB: 既読も端末へ残し同じ操作IDで再送する<br/>表示上の既読とDB確認済みを区別する
-            end
-        end
-    else 開けなかったと判定できた
-        Note over View,DB: 既読に変更しない
-        View-->>User: 一覧を維持
-    end
-```
-
-ルール：UI-05、READ-01・04、LIST-04〜05。記事を開くことを気になる登録や解除の判断にしない。既読になっても全記事一覧・気になる一覧の対象からは外れない。
-
-「外部タブ作成と遷移依頼の受付を確認する」「受付後に既読の保存を依頼する」は仕分けと共通化できる。「同じカードへ戻る」と「一覧へ戻る」は、それぞれの画面側の責任とする。
-
-外部移動の受付後は、既読操作を端末へ非同期保存し、保存後に送信する。端末保存前の強制終了では直前の変更が残らない場合がある。保存済みの変更は起動時に再送する。外部から戻るまでに記事が削除されていた場合は再作成せず、削除済みを通知してその項目を解消する。
-
-## 6. 一覧変更の保持と起動時再送
-
-```mermaid
-sequenceDiagram
-    actor U as 利用者
-    participant V as 一覧の状態管理
-    participant Q as 変更の送信管理
-    participant L as 端末保存
-    participant S as サーバー
-    U->>V: 気になる・ピンを変更
-    V->>V: 希望状態を即時表示
-    V->>Q: 操作IDと変更を渡す
-    Q->>L: 同じ記事の順序を保って保存
-    alt 端末保存成功
-        Q->>S: 先行操作の確定後に送信
-        S-->>Q: 操作IDと結果
-        Q->>L: 確認した操作だけ削除
-        Q->>V: 最新の希望を維持して確定値を更新
-    else 端末保存失敗
-        Q-->>V: 該当操作を停止し再試行を案内
-    end
-    Note over L,S: 応答不明は端末に残し、起動時に通常操作を待機して再送
-```
-
-既読も同じ端末保存・送信の経路を使う。新しい操作がある記事を古い応答で戻さない。削除済みは通知して解消し、不正要求は自動再試行を止める。気になるの解除失敗で記事を復元する場合も、対象記事の状態だけを戻す。[操作方針](operation-policy.md)を参照。
-
-一覧変更は仕分け終了を待つ一括送信にはせず、操作ごとの非同期送信とする。起動時は仕分け・一覧・既読の残りを同期してから日次判定・通常操作へ進む。[仕分けの起動時同期](sequences.md#4-起動時に残っている登録を同期してから操作を開始する)を参照。
+画面から元記事を開く処理は未接続。受付判定の仕様は[操作方針](operation-policy.md#合意済み外部記事と既読)を参照する。ArticleStateModel.recordOpenedは日時指定の直接保存を用意しているが、端末保存・起動時再送は行わない。外部への移動を既読保存の完了まで待たせない。サーバーは古い日時で最後に開いた日時を巻き戻さない。

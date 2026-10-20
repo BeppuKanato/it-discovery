@@ -9,9 +9,9 @@ Issue #10で、全記事・気になる一覧をAPIに接続した。初回は20
 Issue #11で構成をMVVM＋Atomic Designへ整理した。現在のフォルダ・部品の依存関係・状態の持ち主は[フロントの構成図](frontend-architecture.md)を参照する。
 
 - features/list/viewsは表示とイベント通知を行う。
-- features/list/view-modelsは画面入力をModelへ接続し、Modelの表示値を公開する。
-- features/list/modelsは一覧取得と表示対象を扱い、features/articles/modelsは記事データ、features/article-changes/modelsは未完了操作と同期を扱う。
-- infrastructureはAxios・IndexedDBなどの具体的な外部接続を実装する。
+- features/list/view-modelsは記事配列・取得状態・保存状態を持ち、操作をModelへ依頼する。
+- features/list/modelsは一覧取得条件とジェスチャー判定を、features/articles/modelsは記事状態の直接保存と現在状態取得を扱う。
+- infrastructureはAxiosによる外部接続を実装する。
 - PrimeVueをAtomsとして使い、Molecules・Organisms・Templates・Pagesは必要なものだけ作る。
 
 ## 実行順序
@@ -48,9 +48,11 @@ sequenceDiagram
 - 画面先頭で下に引いて離すと更新する。上部の更新ボタンでも同じ操作ができる。
 - 末尾の自動取得に加え、「続きを読み込む」ボタンからも取得できる。
 
-Issue #10の範囲は表示と取得。Issue #11で追加した[気になる・ピンの変更と端末保存](article-list-state.md)は別資料で説明する。元記事を開く操作と既読保存、仕分け、収集は後続Issueで接続する。
+Issue #10の範囲は表示と取得。Issue #11で追加した[気になる・ピンの保存中表示と直接保存](article-list-state.md)は別資料で説明する。元記事を開く操作と既読保存、仕分け、収集は後続Issueで接続する。
 
-## 確認結果
+## Issue #10時点の確認結果
+
+以下は過去の検証記録。今回の状態変更UIは[一覧操作](article-list-state.md)を参照。
 
 一覧状態・通信形式・引く操作を含むフロント20テスト、API67テスト、型チェックとビルドを実施した。
 

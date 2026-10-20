@@ -1,6 +1,6 @@
 import { SORTING_LIMIT, SortingError } from '../models/article-sorting';
 
-// 仕分け回のIDを検証する。状態変更のoperationIdとは別の名前空間で扱う。
+// 仕分け回のIDを検証する。仕分け結果の照会・重複防止は維持する。
 export function normalizeBatchId(value: unknown): string {
   if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
     throw new SortingError('INVALID_SORTING_INPUT', 'batchIdにはUUID v4を指定してください。');
