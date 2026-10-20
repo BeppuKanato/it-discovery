@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, watch } from 'vue';
 import Button from 'primevue/button';
 import Message from 'primevue/message';
 import Skeleton from 'primevue/skeleton';
 import ProgressBar from 'primevue/progressbar';
+import type { InterestBatchSyncModel } from '../../models/interest-batch-sync.model';
 import type { PendingInterestModel } from '../../models/pending-interest.model';
 import type { SortingModel } from '../../models/sorting.model';
 import type { ArticleOpeningModel } from '../../../articles/models/article-opening.model';
@@ -12,17 +13,20 @@ import { useSortingViewModel } from '../../view-models/useSortingViewModel';
 import SortingLayout from '../templates/SortingLayout.vue';
 import SortingCard from '../organisms/SortingCard.vue';
 
-const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpeningModel; stateModel: ArticleStateModel; createPendingInterests: () => PendingInterestModel }>();
+const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpeningModel; stateModel: ArticleStateModel; createPendingInterests: () => PendingInterestModel; batchSync: InterestBatchSyncModel }>();
 const emit = defineEmits<{ exit: [] }>();
-const vm = useSortingViewModel(props.sortingModel, props.openingModel, props.stateModel, props.createPendingInterests());
-const { storageError, pendingWrites, loading, error, openingError, currentArticle, currentReadStatus, total, processedCount, interestedIds,
+const vm = useSortingViewModel(props.sortingModel, props.openingModel, props.stateModel, props.createPendingInterests(), props.batchSync);
+const { finishing, finished, finishError, missingIds, storageError, pendingWrites, loading, error, openingError, currentArticle, currentReadStatus, total, processedCount, interestedIds,
   complete, canUndo, canJudge, canNext, canExit, swipeOffset } = vm;
-onMounted(() => { void vm.initialize(); window.addEventListener('beforeunload', beforeUnload); });
-onUnmounted(() => { window.removeEventListener('beforeunload', beforeUnload); vm.dispose(); });
-async function exit(): Promise<void> { if (canExit.value && await vm.prepareExit()) emit('exit'); }
+onMounted(() => { void vm.initialize(); vm.setOnline(navigator.onLine); window.addEventListener('beforeunload', beforeUnload); window.addEventListener('online', online); window.addEventListener('offline', offline); });
+onUnmounted(() => { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('online',online); window.removeEventListener('offline',offline); vm.dispose(); });
+watch(finished, value => { if (value) emit('exit'); });
+function exit(): void { if (canExit.value) void vm.finishSorting(); }
+function online(): void { vm.setOnline(true); }
+function offline(): void { vm.setOnline(false); }
 function beforeUnload(event: BeforeUnloadEvent): void {
   // 仮選択を保護する補助。ブラウザの強制終了やOSによる終了までは防げない。
-  if (pendingWrites.value || storageError.value) { event.preventDefault(); event.returnValue = ''; }
+  if (!finished.value && (pendingWrites.value || storageError.value || finishing.value)) { event.preventDefault(); event.returnValue = ''; }
 }
 </script>
 
@@ -30,7 +34,7 @@ function beforeUnload(event: BeforeUnloadEvent): void {
   <SortingLayout>
     <template #header>
       <span class="brand">IT Discovery</span>
-      <Button type="button" label="仕分けを終了する" text size="small" :disabled="!canExit" @click="exit" />
+      <Button type="button" label="仕分けを終了する" text size="small" :disabled="!canExit" :loading="finishing" @click="exit" />
     </template>
     <template #intro>
       <p class="eyebrow">気になる発見を、ひとつずつ。</p>
@@ -73,11 +77,16 @@ function beforeUnload(event: BeforeUnloadEvent): void {
         <span class="complete-mark" aria-hidden="true">✓</span><h2>{{ total }}件の仕分けが終わりました</h2>
         <p>気になる {{ interestedIds.length }} 件を仮選択しています。</p>
         <p>終了する前なら、判断を戻せます。</p>
-        <Button type="button" label="仕分けを終了する" :disabled="!canExit" @click="exit" />
+        <Button type="button" label="仕分けを終了する" :disabled="!canExit" :loading="finishing" @click="exit" />
       </section>
       <div class="undo"><Button type="button" label="ひとつ戻す" text :disabled="!canUndo" @click="vm.undo" /></div>
-      <Message v-if="interestedIds.length" severity="warn" :closable="false" class="status">
-        気になるの保存は現在利用できません。選択はこの画面内に保持しています。保存を伴う終了はできません。
+      <Message v-if="finishing" severity="info" :closable="false" class="status">最終の気になるを保存しています…</Message>
+      <Message v-if="finishError" severity="error" :closable="false" class="status">{{ finishError }}
+        <Button v-if="!missingIds.length" type="button" label="登録を再試行" text :disabled="finishing" @click="vm.finishSorting" />
+      </Message>
+      <Message v-if="missingIds.length" severity="warn" :closable="false" class="status">
+        {{ missingIds.length }}件の記事がサーバーに存在しないため登録できませんでした。他の記事の登録結果は確認できました。
+        <Button type="button" label="確認して一覧へ" text :disabled="finishing" @click="vm.acknowledgeMissing" />
       </Message>
     </template>
     <template #footer><p class="footnote">{{ storageError ? '端末保存に失敗しています。閉じると最新の変更が失われる場合があります。' : pendingWrites ? '気になるを端末へ保存しています…' : '保存済みの気になるは端末に残ります。カード位置と履歴は再開しません。' }}</p></template>

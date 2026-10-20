@@ -1,3 +1,5 @@
+import { interestBatchApiFixture } from '../../../test/interest-batch-fixture';
+import { InterestBatchSyncModel, InterestBatchError } from '../models/interest-batch-sync.model';
 import { memoryPendingStore } from '../../../test/pending-interest-fixture';
 import { PendingInterestModel } from '../models/pending-interest.model';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,8 +17,9 @@ function setupSorting(ids = [3, 2, 1], store = memoryPendingStore()) {
   const getSortingCandidates = vi.fn().mockResolvedValue({ articles: ids.map(article) }); const open = vi.fn();
   const updateArticleState = vi.fn(); const getArticleState = vi.fn();
   const models = { sorting: new SortingModel({ getSortingCandidates }), opening: new ArticleOpeningModel({ open }), state: new ArticleStateModel({ updateArticleState, getArticleState }) };
-  const vm = useSortingViewModel(models.sorting, models.opening, models.state, new PendingInterestModel(store));
-  return { vm, models, getSortingCandidates, open, updateArticleState, getArticleState };
+  const batchApi = interestBatchApiFixture();
+  const vm = useSortingViewModel(models.sorting, models.opening, models.state, new PendingInterestModel(store), new InterestBatchSyncModel(store,batchApi));
+  return { vm, batchApi, store, models, getSortingCandidates, open, updateArticleState, getArticleState };
 }
 function saved(openedAt: string): ArticleStateResponse { return { articleId: 3, state: { ...article(3).state, lastOpenedAt: openedAt } }; }
 
@@ -28,7 +31,7 @@ describe('仕分けVM', () => {
   });
   it('A仮登録・B見送りと2回戻すは全て手元だけで進み、GETもPUTも増えない', async () => {
     const { vm, getSortingCandidates, updateArticleState, getArticleState } = setupSorting(); await vm.initialize();
-    vm.decide('interested'); expect(vm.currentArticle.value?.articleId).toBe(2); expect(vm.canExit.value).toBe(false);
+    vm.decide('interested'); expect(vm.currentArticle.value?.articleId).toBe(2); expect(vm.canExit.value).toBe(true);
     vm.decide('skipped'); expect(vm.currentArticle.value?.articleId).toBe(1); expect(vm.interestedIds.value).toEqual([3]);
     vm.undo(); expect(vm.currentArticle.value?.articleId).toBe(2); expect(vm.interestedIds.value).toEqual([3]);
     vm.undo(); expect(vm.currentArticle.value?.articleId).toBe(3); expect(vm.interestedIds.value).toEqual([]); expect(vm.canExit.value).toBe(true);
@@ -37,7 +40,7 @@ describe('仕分けVM', () => {
   it('10件全てを判断しても自動送信せず、完了画面から戻せる', async () => {
     const { vm, updateArticleState } = setupSorting(Array.from({ length: 10 }, (_, i) => 10 - i)); await vm.initialize();
     for (let i = 0; i < 10; i++) vm.decide('interested');
-    expect(vm.complete.value).toBe(true); expect(vm.processedCount.value).toBe(10); expect(vm.canUndo.value).toBe(true); expect(vm.canExit.value).toBe(false);
+    expect(vm.complete.value).toBe(true); expect(vm.processedCount.value).toBe(10); expect(vm.canUndo.value).toBe(true); expect(vm.canExit.value).toBe(true);
     vm.undo(); expect(vm.currentArticle.value?.articleId).toBe(1); expect(vm.interestedIds.value.length).toBe(9); expect(updateArticleState).not.toHaveBeenCalled();
   });
   it('0件では判断を開始せず、少数ならその件数で完了する', async () => {
@@ -101,6 +104,31 @@ describe('仕分けVM', () => {
     vm.decide('skipped'); vm.undo(); expect(vm.interestedIds.value).toEqual([3]); expect(vm.currentArticle.value?.articleId).toBe(2);
     await vm.retryPending(); expect(vm.storageError.value).toBeNull(); expect(vm.canUndo.value).toBe(true); expect(put).toHaveBeenCalledTimes(2);
     vm.undo(); expect(await vm.prepareExit()).toBe(true); expect((await store.loadAll())[0]?.articleIds).toEqual([]);
+  });
+
+  it('完了画面だけでは送信せず、終了で取り消し後の集合だけ送り、空集合は通信しない', async () => {
+    const {vm,batchApi,store}=setupSorting([3,2]);await vm.initialize();vm.decide('interested');vm.decide('interested');vm.undo();vm.decide('skipped');
+    expect(batchApi.saveInterestBatch).not.toHaveBeenCalled();await vm.finishSorting();expect(vm.finished.value).toBe(true);
+    expect(batchApi.saveInterestBatch.mock.calls[0]?.[0].articleIds).toEqual([3]);expect(await store.loadAll()).toEqual([]);
+    const empty=setupSorting([1]);await empty.vm.initialize();empty.vm.decide('skipped');await empty.vm.finishSorting();expect(empty.batchApi.saveInterestBatch).not.toHaveBeenCalled();expect(empty.batchApi.getInterestBatchResult).not.toHaveBeenCalled();
+  });
+  it('一時失敗は固定した集合を再試行し、送信開始後は戻す・判断を止める',async()=>{
+    vi.useFakeTimers();try{
+      const {vm,batchApi,store}=setupSorting([3,2]);await vm.initialize();vm.decide('interested');batchApi.saveInterestBatch.mockRejectedValueOnce(new InterestBatchError('temporary','network'));
+      await vm.finishSorting();expect(vm.finished.value).toBe(false);expect((await store.loadAll()).length).toBe(1);vm.undo();vm.decide('skipped');expect(vm.interestedIds.value).toEqual([3]);
+      await vi.advanceTimersByTimeAsync(1000);expect(vm.finished.value).toBe(true);expect(batchApi.saveInterestBatch.mock.calls[0]?.[0]).toEqual(batchApi.saveInterestBatch.mock.calls[1]?.[0]);vm.dispose();
+    }finally{vi.useRealTimers();}
+  });
+  it('削除済み記事は確認前に消さず、明示的に確認してから端末記録を解消する',async()=>{
+    const {vm,batchApi,store}=setupSorting([3]);await vm.initialize();vm.decide('interested');
+    batchApi.saveInterestBatch.mockImplementationOnce(async batch=>({batchId:batch.batchId,revision:batch.revision,results:[{articleId:3,status:'missing' as const}]}));
+    await vm.finishSorting();expect(vm.missingIds.value).toEqual([3]);expect((await store.loadAll()).length).toBe(1);expect(vm.finished.value).toBe(false);
+    await vm.acknowledgeMissing();expect(vm.finished.value).toBe(true);expect(await store.loadAll()).toEqual([]);
+  });
+  it('恒久エラーは自動再送せず、終了しても端末記録を残す',async()=>{
+    vi.useFakeTimers();try{const {vm,batchApi,store}=setupSorting([3]);await vm.initialize();vm.decide('interested');batchApi.saveInterestBatch.mockRejectedValue(new InterestBatchError('blocked','auth'));
+      await vm.finishSorting();await vi.advanceTimersByTimeAsync(60000);expect(batchApi.saveInterestBatch).toHaveBeenCalledOnce();expect(vm.finishBlocked.value).toBe(true);vm.dispose();expect((await store.loadAll()).length).toBe(1);
+    }finally{vi.useRealTimers();}
   });
 
 });

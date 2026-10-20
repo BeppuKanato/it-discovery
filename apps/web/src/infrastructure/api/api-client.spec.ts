@@ -78,3 +78,16 @@ describe('仕分け対象のAPI通信', () => {
     get.mockResolvedValue({ data }); await expect(new ApiClient('/api').getSortingCandidates()).rejects.toThrow('仕分け対象');
   });
 });
+
+describe('仕分け一括登録の通信',()=>{
+  const batch={batchId:'00000000-0000-4000-8000-000000000001',revision:2,articleIds:[1,2]};
+  const result={batchId:batch.batchId,revision:2,results:[{articleId:1,status:'saved'},{articleId:2,status:'missing'}]};
+  beforeEach(()=>{get.mockReset();put.mockReset();create.mockReturnValue({get,put});});
+  it('結果照会の404だけ未記録とし、同じ回ID・版・集合をPUTする',async()=>{
+    const api=new ApiClient('/api');get.mockRejectedValueOnce({response:{status:404}});expect(await api.getInterestBatchResult(batch)).toBeUndefined();
+    put.mockResolvedValueOnce({data:result});expect(await api.saveInterestBatch(batch)).toEqual(result);expect(put).toHaveBeenCalledWith(`/sorting/interest-batches/${batch.batchId}`,{revision:2,articleIds:[1,2]},{signal:undefined});
+  });
+  it.each([400,401,403,404,409,422])('PUT %iでは自動再送を止める',async status=>{put.mockRejectedValueOnce({response:{status}});await expect(new ApiClient('/api').saveInterestBatch(batch)).rejects.toMatchObject({kind:'blocked'});});
+  it.each([429,500])('PUT %iは記録を残して再試行する',async status=>{put.mockRejectedValueOnce({response:{status}});await expect(new ApiClient('/api').saveInterestBatch(batch)).rejects.toMatchObject({kind:'temporary'});});
+  it.each([{...result,revision:3},{...result,batchId:'other'},{...result,results:[{articleId:1,status:'saved'},{articleId:1,status:'saved'}]},{...result,results:[{articleId:3,status:'saved'}]}])('識別・版・ID集合の異なる応答で成功扱いしない',async data=>{put.mockResolvedValueOnce({data});await expect(new ApiClient('/api').saveInterestBatch(batch)).rejects.toMatchObject({kind:'blocked'});});
+});

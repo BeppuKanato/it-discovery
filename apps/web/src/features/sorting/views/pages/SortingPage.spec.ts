@@ -1,3 +1,5 @@
+import { interestBatchApiFixture } from '../../../../test/interest-batch-fixture';
+import { InterestBatchSyncModel, InterestBatchError } from '../../models/interest-batch-sync.model';
 import { memoryPendingStore } from '../../../../test/pending-interest-fixture';
 import { PendingInterestModel } from '../../models/pending-interest.model';
 import { describe, expect, it, vi } from 'vitest';
@@ -19,9 +21,11 @@ function fixture(ids = [2,1]) {
   const openingModel = new ArticleOpeningModel({ open: vi.fn() });
   const updateArticleState = vi.fn();
   const stateModel = new ArticleStateModel({ updateArticleState, getArticleState: vi.fn() });
-  const createPendingInterests = () => new PendingInterestModel(memoryPendingStore());
-  const vm = useSortingViewModel(sortingModel, openingModel, stateModel, createPendingInterests());
-  return { vm, props: { sortingModel, openingModel, stateModel, createPendingInterests }, updateArticleState };
+  const store = memoryPendingStore();
+  const createPendingInterests = () => new PendingInterestModel(store);
+  const batchSync = new InterestBatchSyncModel(store,interestBatchApiFixture());
+  const vm = useSortingViewModel(sortingModel, openingModel, stateModel, createPendingInterests(), batchSync);
+  return { vm, props: { sortingModel, openingModel, stateModel, createPendingInterests, batchSync }, updateArticleState };
 }
 async function render(f: ReturnType<typeof fixture>) {
   getVm.mockReturnValue(f.vm);
@@ -39,11 +43,11 @@ describe('仕分け画面の表示', () => {
     const f = fixture([]); await f.vm.initialize(); const html = await render(f);
     expect(html).toContain('今は仕分ける記事がありません'); expect(html).toContain('一覧へ戻る'); expect(button(html,'気になる')).toBe('');
   });
-  it('完了後も戻すを残し、仮選択を登録済みと表示せず、保存未提供の終了を止める', async () => {
+  it('完了後も戻すを残し、仮選択を登録済みと表示せず、終了操作まで仮選択を保持する', async () => {
     const f = fixture(); await f.vm.initialize(); f.vm.decide('interested'); f.vm.decide('skipped'); const html = await render(f);
     expect(html).toContain('2件の仕分けが終わりました'); expect(html).toContain('1 件を仮選択');
     expect(button(html,'ひとつ戻す')).not.toMatch(/\sdisabled(?:=|\s|>)/);
-    expect(button(html,'仕分けを終了する')).toMatch(/\sdisabled(?:=|\s|>)/); expect(html).toContain('保存は現在利用できません');
+    expect(button(html,'仕分けを終了する')).not.toMatch(/\sdisabled(?:=|\s|>)/);
   });
   it('見送りだけで完了した場合は通信なしで終了できる', async () => {
     const f = fixture([1]); await f.vm.initialize(); f.vm.decide('skipped'); const html = await render(f);
