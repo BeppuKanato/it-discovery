@@ -4,6 +4,14 @@ export type ArticleStateChange =
   | { kind: 'pinned'; value: boolean }
   | { kind: 'opened'; openedAt: string };
 
+// 操作記録を持たない直接保存用の本文。成功応答はArticleStateResponse。
+export interface ArticleStateUpdateRequest {
+  change: ArticleStateChange;
+}
+
+// 旧フロントの型チェックを保つためだけに残す。新しいAPIはoperationIdを受け付けない。
+// フロントの直接保存への切り替え時に、この旧契約と利用箇所を削除する。
+/** @deprecated 新APIではArticleStateUpdateRequestを使う。 */
 export interface ArticleStateMutationRequest {
   operationId: string;
   change: ArticleStateChange;
@@ -21,7 +29,8 @@ export interface ArticleStateResponse {
   state: ArticleStateValue;
 }
 
-// missingは再送しても登録できない結果。通信失敗とは区別して端末側で解消できる。
+// 旧フロント専用の応答型。新APIはArticleStateResponse、記事なしは404を返す。
+/** @deprecated 新APIではArticleStateResponseを使う。 */
 export type ArticleStateOperationResponse = {
   operationId: string;
   articleId: number;

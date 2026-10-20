@@ -1,6 +1,6 @@
 export type { ArticleListKind, ArticlePageRequest, ArticleListItem, ArticlePageResponse } from './articles';
 export type {
-  ArticleStateChange, ArticleStateMutationRequest, ArticleStateValue,
+  ArticleStateChange, ArticleStateUpdateRequest, ArticleStateMutationRequest, ArticleStateValue,
   ArticleStateResponse, ArticleStateOperationResponse,
 } from './article-state';
 

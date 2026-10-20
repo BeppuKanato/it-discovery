@@ -57,7 +57,8 @@ export const appSettings = sqliteTable('app_settings', {
   check('settings_valid_hour', sql`${table.collectionHour} BETWEEN 0 AND 23`),
 ]);
 
-// 記事への外部キーは付けない。記事削除後も結果を残し、古い再送を再実行しない。
+// 旧APIの操作記録。新しい状態更新APIは読み書きしない。
+// 既存DBとマイグレーション履歴を壊さないため、今回は表の定義・データを残す。
 export const articleStateOperations = sqliteTable('article_state_operations', {
   operationId: text('operation_id').primaryKey(),
   requestKey: text('request_key').notNull(),

@@ -5,10 +5,7 @@ import { ArticleService } from './services/article.service';
 import { SqliteArticleRepository } from './repositories/sqlite-article.repository';
 import { ArticlesController } from './controllers/articles.controller';
 import { ArticleStateService } from './services/article-state.service';
-import { ArticleStateOperationRepository } from './repositories/article-state-operation.repository';
-import { SqliteArticleStateOperationRepository } from './repositories/sqlite-article-state-operation.repository';
 import { ArticleStateController } from './controllers/article-state.controller';
-import { ArticleStateOperationController } from './controllers/article-state-operation.controller';
 
 import { ArticleSortingService } from './services/article-sorting.service';
 import { ArticleInterestBatchRepository } from './repositories/article-interest-batch.repository';
@@ -17,11 +14,10 @@ import { SortingController } from './controllers/sorting.controller';
 
 @Module({
   imports: [DatabaseModule],
-  controllers: [ArticlesController, ArticleStateController, ArticleStateOperationController, SortingController],
+  controllers: [ArticlesController, ArticleStateController, SortingController],
   // 抽象の名前で要求された部品へ、どの実装を渡すかをここで組み合わせる。
   providers: [ArticleService, ArticleStateService, ArticleSortingService,
     { provide: ArticleRepository, useClass: SqliteArticleRepository },
-    { provide: ArticleStateOperationRepository, useClass: SqliteArticleStateOperationRepository },
     { provide: ArticleInterestBatchRepository, useClass: SqliteArticleInterestBatchRepository }],
   exports: [ArticleService, ArticleStateService, ArticleSortingService],
 })
