@@ -82,7 +82,7 @@ sequenceDiagram
 
 旧article_state_operations表と過去のマイグレーションは保持する。新APIはその表を読み書きしない。既存の記事・状態・操作記録を削除する移行は行わない。仕分け用article_interest_batchesは継続利用する。
 
-この変更はバックエンドのみ。旧フロントはoperationId付き要求・旧応答・照会APIを前提としており、新APIと実行時互換ではない。後続のフロント修正で端末キュー・復元・再送・照会を外し、通信中の操作制限と処理中表示へ変更する。それまではバック変更を分離ブランチに保ち、現行UIと組み合わせて配布しない。
+フロントも直接保存へ接続した。端末キュー・復元・自動再送・操作結果照会を外し、保存中の部分着色と同じ記事の操作制限、成功後の確定へ変更した。結果不明時は現在状態を一回GETし、取得不能なら手動確認を案内する。旧ブラウザ記録は自動削除・再送しない。[一覧操作](article-list-state.md)を参照。
 
 共有型にはArticleStateUpdateRequestを追加し、応答は既存のArticleStateResponseを使う。旧フロントの型チェックを壊さないため旧MutationRequest・OperationResponse型だけdeprecatedとして残す。互換APIは追加しない。
 
