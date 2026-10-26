@@ -32,6 +32,9 @@ jobs:
       - run: npm run test
       - run: npm run build
       - run: npm run test:integration
+      # Pointer captureはNodeのイベント模擬だけでは検証できないため、実ブラウザへタッチを送る。
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/check-swipe.mjs
 
   docker:
     runs-on: ubuntu-latest
