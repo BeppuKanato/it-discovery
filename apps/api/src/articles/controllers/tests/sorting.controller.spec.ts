@@ -49,7 +49,10 @@ describe('仕分けのHTTP API', () => {
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('no-store');
     const result = await response.json() as SortingCandidatesResponse;
     expect(Object.keys(result)).toEqual(['articles']);
-    expect(result.articles.map((item) => item.articleId)).toEqual(ids.reverse().slice(0, 10));
+    const selected = result.articles.map((item) => item.articleId);
+    expect(selected).toHaveLength(Math.min(count, 10));
+    expect(new Set(selected).size).toBe(selected.length);
+    expect(selected.every((id) => ids.includes(id))).toBe(true);
     for (const item of result.articles) {
       expect(item).toMatchObject({ title: '仕分けする記事', fetchedAt: fetchedAt.toISOString(), publishedAt: null,
         description: null, source: { sourceId: 'zenn', siteName: 'Zenn', iconUrl: null },

@@ -26,7 +26,7 @@ sequenceDiagram
 
 タイトル・HTTP(S)のURLがない記事は一件だけスキップする。任意の説明・著者・日付がなければnullとし、壊れた日付でも記事は残す。日付ありは公開日時降順、同日時と日付なし同士は入力順を維持する。日付なしは日付ありの後ろに配置する。取得先全体の通信失敗・HTTPエラー・不正フォーマットは例外で返し、正常な0件と区別する。25秒でタイムアウトし、応答は20MiBまでとする。生データ・認証ヘッダーはエラーメッセージに含めない。
 
-RSS・AtomはZenn、Cloudflare Changelog、YouTubeのGoogle Developersチャンネル、Syntax Podcastの既定取得先に対応する。YouTubeのmedia:descriptionも概要に使う。
+現在の既定取得先はZenn・Publickey・gihyo.jp・Hacker Newsの4件。すべて同じRSS・Atom Adapterで解析する。以前のYouTube・Podcastなどの対応も維持する。YouTubeのmedia:descriptionも概要に使う。
 
 GitHubは一覧APIの近傍を1ページ100件、`min(10, ceil(maxPerRun / 100) + 1)`ページまで調べる。APIの配列順やcreated_atを公開順と見なさず、取得範囲内でpublished_at降順に最大maxPerRun件を選ぶ。prereleaseを含みdraftを除く。過去全件を遡らないため、この範囲外にある古いコミットに付いたリリースを必ず発見する保証はしない。名前がなければtag_nameを表示し、識別には数値のrelease IDを使う。
 
@@ -38,3 +38,5 @@ GitHubは一覧APIの近傍を1ページ100件、`min(10, ceil(maxPerRun / 100) 
 
 - [rss-parser](https://github.com/rbren/rss-parser)
 - [GitHub Releases API](https://docs.github.com/en/rest/releases/releases)
+
+現在の情報源・既存DBの移行は[データ方針](data-policy.md#対応情報源とデフォルト取得先)を参照する。収集の依存関係・実行順序は上の図と同じで、新たなAdapterや依存ライブラリは追加しない。

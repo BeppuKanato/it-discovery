@@ -22,7 +22,7 @@ Issue #3で決めた設計。設定画面・収集・DB処理の実装済み機�
 ## 一覧の分割取得
 
 - 全記事・気になる一覧は一回20件を取得する。一覧APIのlimitは省略時20、指定する場合は1〜20を受け付ける。[実装したAPI](article-list-api.md)を参照する。
-- 並び順は取得日時の降順、同時刻はDB内の記事IDの降順とする。仕分け対象の選択にも同じ順序を使う。
+- 並び順は取得日時の降順、同時刻はDB内の記事IDの降順とする。仕分けは未読・気になる未登録・ピンなしの全対象から最大10件をランダム抽出する。各回の途中ではカードの順番を固定する。
 - カーソルは最後に返した記事の取得日時とDB内の記事IDを表す。次のページはこの組より後ろの記事を取得する。件数による位置指定は使わない。
 - 次のページの有無は一件多く検索して判定し、返す記事は最大20件とする。対象記事が削除されてもカーソルの値で続きを指定できる。
 - スクロール中に先頭側へ追加された新着は自動挿入しない。下に引く更新で先頭から読み直す。
@@ -44,21 +44,18 @@ Issue #3で決めた設計。設定画面・収集・DB処理の実装済み機�
 
 ## 対応情報源とデフォルト取得先
 
-ユーザーが取得先を追加・変更・無効化できる方針とする。初期登録する取得先は、既存の調査スクリプトで扱った次の5件とする。RSS・Atomでは任意の対応フィード、YouTubeではチャンネル、GitHubではリポジトリを設定する。任意のAPIを設定だけで扱う仕組みは作らず、APIごとの対応Adapterを用意する。
+初期登録する取得先は次の4件。いずれも既存のRSS・Atom Adapterで取得する。Hacker Newsは公式の主要フィードを使い、全投稿やShow HNだけの収集は行わない。
 
 | 情報源 | デフォルト取得先 | 方法 |
 |---|---|---|
 | Zenn | https://zenn.dev/feed | RSS |
-| Cloudflare Changelog | https://developers.cloudflare.com/changelog/rss/index.xml | RSS |
-| YouTube / Google Developers | https://www.youtube.com/feeds/videos.xml?channel_id=UC_x5XG1OV2P6uZZ5FSM9Ttw | Atom |
-| Podcast / Syntax | https://feed.syntax.fm/rss | RSS |
-| GitHub Releases / cloudflare/workers-sdk | https://api.github.com/repos/cloudflare/workers-sdk/releases | GitHub API |
+| Publickey | https://www.publickey1.jp/atom.xml | Atom |
+| gihyo.jp | https://gihyo.jp/feed/rss2 | RSS |
+| Hacker News | https://news.ycombinator.com/rss | RSS |
 
-最新最大50件には既存記事も含まれる。新規だけ追加し、既存は更新する。提供件数が50件未満ならその範囲を扱い、日々250件の新着を保証するものではない。フィードが提供しない過去記事を補完しない。GitHub Releasesは公開リリース（プレリリースを含む）を公開日時の新しい側から最大50件確認する。APIの既定順序だけを新着順と仮定せず、対応実装で確認する。取りこぼしは許容する。
+最新最大50件には既存記事も含まれる。新規だけ追加し、既存は更新する。提供件数が50件未満ならその範囲を扱い、毎日の新着件数を保証しない。フィードが提供しない過去記事を補完しない。
 
-取得先の設定UI・APIは後続作業として切り分ける。収集の実装では固定サンプルと本番のSourceConfigを区別する。デフォルトは検証用に幅広い種類を含めており、利用量に応じてユーザーが無効化できる。
-
-2026-10-09にRSS・Atomの4取得先でHTTP 200とXMLの解析を確認した。提供件数はZenn 20件、Cloudflare Changelog 1,320件、YouTube 15件、Syntax 1,045件だった。これはフィード全体の掲載件数であり、一日の新着数ではない。GitHub Releasesの公開APIも応答を確認した。取得処理を実装するときにも仕様と取得順を確認する。
+既存DBには`0003_retire-old-default-sources.sql`で旧デフォルト4件（Cloudflare Changelog、Google Developers、Syntax、workers-sdk Releases）の収集停止を一度だけ適用する。記事・ピン・気になる・設定行は残すため、過去記事は一覧・取得先フィルターから参照でき、条件を満たせば仕分けにも出る。新規取得先3件はSettingsServiceが未登録時だけ追加する。既存Zennの設定や、移行後の設定変更を起動ごとに上書きしない。取得先の設定UI・APIは後続作業。既存のYouTube・Podcast・GitHub用Adapterやテストは削除しない。
 
 ## 収集・保持の実行単位
 

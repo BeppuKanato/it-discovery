@@ -24,7 +24,7 @@ export abstract class ArticleRepository {
   abstract registerInterests(articleIds: number[]): void;
   // 指定位置より古い記事を取得日時とIDの降順で取得する。
   abstract findPage(query: ArticlePageQuery): ArticleListEntry[];
-  // 未読・気になる未登録・ピンなしを取得日時とIDの降順で取得する。
+  // 未読・気になる未登録・ピンなしの全対象から、無作為に重複なく抽出する。
   abstract findSortingCandidates(limit: number): ArticleListEntry[];
   // 未読・未保護で期限より古い記事と状態を削除する。
   abstract deleteExpired(before: Date): number;

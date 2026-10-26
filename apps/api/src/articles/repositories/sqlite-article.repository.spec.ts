@@ -36,6 +36,32 @@ describe('SQLiteの記事と設定の永続保存', () => {
     else process.env['DATABASE_PATH'] = oldPath;
   });
 
+  it('旧DBの情報源を一度だけ停止し、記事・保存状態・利用者の設定を維持する', () => {
+    const legacy = { ...defaultSources[0]!, sourceId: 'cloudflare_changelog', siteName: 'Cloudflare Changelog',
+      endpoint: 'https://developers.cloudflare.com/changelog/rss/index.xml' };
+    configs.saveSource(legacy);
+    const saved = repository.register({ ...input, sourceId: legacy.sourceId });
+    repository.updateState(saved.article.articleId, { interested: true, pinned: true });
+    configs.saveSource({ ...defaultSources[0]!, enabled: false });
+    // 移行前のDBを再現する。この一時DBだけで新しい移行の適用記録を外す。
+    database.client.prepare('DELETE FROM __drizzle_migrations WHERE created_at = ?').run(1793000000000);
+    database.onApplicationShutdown();
+    database = new DatabaseService();
+    configs = new SettingsService(new SqliteSettingsRepository(database));
+    configs.initialize();
+    repository = new ArticleService(new SqliteArticleRepository(database));
+    expect(configs.listSources().find((source) => source.sourceId === legacy.sourceId)?.enabled).toBe(false);
+    expect(configs.listSources().find((source) => source.sourceId === 'zenn')?.enabled).toBe(false);
+    expect(defaultSources.map((source) => source.sourceId)).toEqual(['zenn', 'publickey', 'gihyo', 'hacker_news']);
+    expect(repository.findById(saved.article.articleId)?.state).toMatchObject({ interested: true, pinned: true });
+    // 一度移行した後の利用者による再有効化を、次の起動で上書きしない。
+    configs.saveSource(legacy);
+    database.onApplicationShutdown();
+    database = new DatabaseService();
+    configs = new SettingsService(new SqliteSettingsRepository(database)); configs.initialize();
+    expect(configs.listSources().find((source) => source.sourceId === legacy.sourceId)?.enabled).toBe(true);
+  });
+
   it('再取得で内容だけを更新し、初回日時・既読・気になる・ピンを維持する', () => {
     const saved = repository.register({ ...input, description: '最初の概要', author: '最初の著者', publishedAt: firstDate }, firstDate);
     const lastOpenedAt = new Date('2026-10-02T00:00:00Z');
@@ -55,7 +81,7 @@ describe('SQLiteの記事と設定の永続保存', () => {
     const noId = { ...input, externalArticleId: null };
     const first = repository.register(noId);
     expect(repository.register(noId).article.articleId).toBe(first.article.articleId);
-    repository.register({ ...noId, sourceId: 'syntax_podcast' });
+    repository.register({ ...noId, sourceId: 'publickey' });
     repository.register({ ...noId, url: `${input.url}?utm_source=test` });
     repository.register({ ...input, externalArticleId: input.url });
     expect(database.db.select().from(articles).all()).toHaveLength(4);
