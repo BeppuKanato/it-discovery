@@ -148,3 +148,8 @@ npm run build
 Serviceの判断、SQLiteの複数ページ・同時刻・途中削除・新着・取得先との対応、実際のNestに対するHTTP入力とJSON応答をテストする。
 
 一覧と仕分けの共通カード情報は[article.formatter.ts](../apps/api/src/articles/controllers/formatters/article.formatter.ts)で変換し、一覧用Formatterがページの続き位置を付ける。
+
+
+## 取得先フィルターの追加（#55）
+
+sourceIdの指定とGET /api/sourcesを追加した。未指定時の既存一覧・カーソルは継続利用できる。検索条件・入力検証・カーソル・取得先応答・責任と実行順序は[取得先フィルター](source-filter.md)を参照。
