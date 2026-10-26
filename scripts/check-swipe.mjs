@@ -112,6 +112,7 @@ try {
   const navigation = await page.getByRole('navigation', { name: 'メインメニュー' }).boundingBox();
   assert.ok(feet.y + feet.height <= navigation.y);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.waitForTimeout(300);
   await page.screenshot({ path: 'artifacts/companion/list.png' });
   assert.equal(chatCalls, 0);
   await page.getByRole('button', { name: '相棒と話す', exact: true }).click();
@@ -119,6 +120,7 @@ try {
   await page.getByRole('button', { name: '送る', exact: true }).click();
   await page.getByText('その使い方は気になるね。', { exact: false }).waitFor();
   assert.equal(chatCalls, 1);
+  await page.waitForTimeout(300);
   await page.screenshot({ path: 'artifacts/companion/conversation.png' });
   await page.getByRole('button', { name: '発見ノートに残す', exact: true }).click();
   await page.getByText('発見ノートに残しました。', { exact: true }).waitFor();

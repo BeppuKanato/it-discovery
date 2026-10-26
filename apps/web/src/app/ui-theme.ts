@@ -6,6 +6,7 @@ export const uiTheme = definePreset(Aura, {
   extend: {
     discovery: {
       background: '#f5f9ff', ink: '#243d5a', muted: '#71859b', line: '#dfebf6',
+      soft: '#eff7ff', partnerInk: '#254e76', partnerMuted: '#6085ac',
       frameStart: '#cfebff', frameEnd: '#e6efff', paper: '#ffffff',
     },
   },

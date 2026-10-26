@@ -19,8 +19,8 @@ const emit = defineEmits<{ open: []; hide: [] }>();
 <style scoped>
 .companion-dock { position: fixed; z-index: 12; inset-inline: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); height: clamp(145px, 23svh, 190px); max-width: 900px; margin-inline: auto; background: linear-gradient(180deg, #edf7ffed, #e1f0fffa); border-top: 1px solid #d8eaff; border-radius: 28px 28px 0 0; }
 .dock-copy { position: absolute; left: 22px; top: 28px; right: 145px; }
-.dock-label { color: #6085ac; font-size: 9px; letter-spacing: .12em; }
-p { font-size: 14px; font-weight: 650; color: #254e76; line-height: 1.7; margin: 10px 0 2px; }
+.dock-label { color: var(--p-discovery-partner-muted); font-size: 9px; letter-spacing: .12em; }
+p { font-size: 14px; font-weight: 650; color: var(--p-discovery-partner-ink); line-height: 1.7; margin: 10px 0 2px; }
 .character { position: absolute; right: 24px; bottom: 8px; height: calc(100% - 8px); width: 112px; padding: 0; border: none; background: none; cursor: pointer; }
 .character img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: bottom; filter: drop-shadow(0 5px 5px #4979b21c); }
 .character:focus-visible { outline: 2px solid var(--p-primary-color); border-radius: 16px; }

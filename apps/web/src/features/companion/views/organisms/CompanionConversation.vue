@@ -36,15 +36,15 @@ watch(() => [messages.value.length, sending.value], async () => { await nextTick
   </Dialog>
 </template>
 <style scoped>
-.conversation-intro { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: #6085ac; }
-.article-context { display: grid; gap: 5px; padding: 12px; background: #eff7ff; border: 1px solid #dcecff; border-radius: 12px; margin: 8px 0; overflow-wrap: anywhere; }
+.conversation-intro { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--p-discovery-partner-muted); }
+.article-context { display: grid; gap: 5px; padding: 12px; background: var(--p-discovery-soft); border: 1px solid #dcecff; border-radius: 12px; margin: 8px 0; overflow-wrap: anywhere; }
 .article-context span { font-size: 10px; color: #5d7792; }.article-context strong { font-size: 12px; line-height: 1.7; }
 .conversation-feed { max-height: 30dvh; min-height: 85px; overflow-y: auto; padding: 8px 0; }
-.invitation, .thinking { color: #6085ac; font-size: 13px; line-height: 1.8; }
-.bubble { width: fit-content; max-width: 90%; padding: 10px 13px; margin: 9px 0; border-radius: 15px 15px 15px 3px; background: #f0f6fb; color: #254463; font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bubble.user { margin-left: auto; background: #e0efff; border-radius: 15px 15px 3px 15px; }.speaker { display: block; color: #6085ac; font-size: 9px; margin-bottom: 2px; }
-.conversation-bottom { position: relative; min-height: 145px; padding-top: 48px; padding-right: 110px; }
-.conversation-character { position: absolute; right: 5px; bottom: 0; width: 100px; height: 150px; object-fit: contain; object-position: bottom; }
-.privacy { color: #71859a; font-size: 10px; line-height: 1.7; margin-top: 10px; }.composer { display: flex; align-items: stretch; gap: 8px; margin-top: 8px; }.composer textarea { flex: 1; min-width: 0; font-size: 16px; resize: vertical; }.composer .p-button { padding: 10px 15px; }.saved-notice { font-size: 12px; color: #287460; }.sr-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.invitation, .thinking { color: var(--p-discovery-partner-muted); font-size: 13px; line-height: 1.8; }
+.bubble { width: fit-content; max-width: 90%; padding: 10px 13px; margin: 9px 0; border-radius: 15px 15px 15px 3px; background: #f0f6fb; color: var(--p-discovery-ink); font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble.user { margin-left: auto; background: #e0efff; border-radius: 15px 15px 3px 15px; }.speaker { display: block; color: var(--p-discovery-partner-muted); font-size: 9px; margin-bottom: 2px; }
+.conversation-bottom { position: relative; min-height: 210px; padding-top: 75px; padding-right: 135px; }
+.conversation-character { position: absolute; right: 5px; bottom: 0; width: 125px; height: 220px; object-fit: contain; object-position: bottom; }
+.privacy { color: var(--p-discovery-muted); font-size: 10px; line-height: 1.7; margin-top: 10px; }.composer { display: flex; align-items: stretch; gap: 8px; margin-top: 8px; }.composer textarea { flex: 1; min-width: 0; font-size: 16px; resize: vertical; }.composer .p-button { padding: 10px 15px; }.saved-notice { font-size: 12px; color: #287460; }.sr-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 @media (max-height: 600px) { .conversation-bottom { min-height: 65px; padding-top: 8px; padding-right: 0; }.conversation-character { display: none; }.conversation-feed { max-height: 22dvh; } }
 </style>

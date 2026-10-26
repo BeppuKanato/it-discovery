@@ -34,6 +34,9 @@ jobs:
       - run: npm run test:integration
       # Pointer captureはNodeのイベント模擬だけでは検証できないため、実ブラウザへタッチを送る。
       # GitHubのUbuntuランナーに含まれるChromeを使い、追加ダウンロードで停止しないようにする。
+      # ランナーには日本語フォントがないため、画面確認で文字が豆腐になるのを防ぐ。
+      - name: Install Japanese font for UI screenshots
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Check touch gestures and source filter in Chrome
         run: |
           swipe_chrome_bin="$(command -v google-chrome)"
