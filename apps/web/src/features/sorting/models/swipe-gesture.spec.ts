@@ -13,9 +13,9 @@ describe('横スワイプの成立判定', () => {
     const gesture = new SwipeGesture(); gesture.begin(0, 0); expect(gesture.move(5, 20)).toBe(false);
     expect(gesture.move(140, 25)).toBe(false); expect(gesture.finish()).toBeNull();
   });
-  it('キャンセル後のmove・finishを無視し、移動量には上限を付ける', () => {
+  it('キャンセル後のmove・finishを無視し、移動量は指に追従する', () => {
     const gesture = new SwipeGesture(); expect(gesture.move(200, 0)).toBe(false);
-    gesture.begin(0, 0); gesture.move(1000, 0); expect(gesture.offset).toBe(160);
+    gesture.begin(0, 0); gesture.move(1000, 0); expect(gesture.offset).toBe(1000);
     gesture.cancel(); expect(gesture.offset).toBe(0); expect(gesture.finish()).toBeNull();
   });
 });

@@ -9,7 +9,8 @@ export class SwipeGesture {
     const dx = x - this.start.x; const dy = y - this.start.y;
     if (!this.direction && Math.max(Math.abs(dx), Math.abs(dy)) >= 12) this.direction = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
     if (this.direction !== 'horizontal') return false;
-    this.offset = Math.max(-160, Math.min(160, dx));
+    // 追従表示は指の移動量をそのまま使う。確定の閾値とは分ける。
+    this.offset = dx;
     return true;
   }
   finish(): 'interested' | 'skipped' | null {

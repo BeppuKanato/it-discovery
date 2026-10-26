@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as Vue from 'vue';
-import { createRenderer, h, nextTick, ref, type Component } from 'vue';
+import { createRenderer, h, nextTick, reactive, ref, type Component } from 'vue';
 import { parse, compileScript } from '@vue/compiler-sfc';
 import ts from 'typescript';
 import { readFileSync } from 'node:fs';
@@ -33,10 +33,10 @@ function setup() {
     remove: n => { if(n.parent) n.parent.children.splice(n.parent.children.indexOf(n),1); }, parentNode: n => n.parent,
     nextSibling: n => n.parent?.children[n.parent.children.indexOf(n)+1] ?? null,
   });
-  const root = node('root'); const current = ref(article(2)); const gesture = new SwipeGesture();
+  const root = node('root'); const current = ref(article(2)); const gesture = reactive(new SwipeGesture());
   const start = vi.fn((x: number,y: number) => gesture.begin(x,y)); const move = vi.fn((x: number,y: number) => gesture.move(x,y));
   const finish = vi.fn(() => { if (gesture.finish()) current.value = article(1); }); const cancel = vi.fn(() => gesture.cancel());
-  const app = renderer.createApp({ render: () => h(SortingCard, { article: current.value, offset: 0, swipeEnabled: true, onStart: start, movePointer: move, onFinish: finish, onCancel: cancel }) }); app.mount(root);
+  const app = renderer.createApp({ render: () => h(SortingCard, { article: current.value, offset: gesture.offset, swipeEnabled: true, onStart: start, movePointer: move, onFinish: finish, onCancel: cancel }) }); app.mount(root);
   const surface = () => root.children.find(n => n.type === 'div')!;
   let captured = false;
   const capture = { setPointerCapture: vi.fn(() => { captured = true; }), hasPointerCapture: () => captured };
@@ -46,15 +46,30 @@ function setup() {
 }
 afterEach(() => vi.unstubAllGlobals());
 describe('仕分けカードのPointerイベント', () => {
+  it('子リンクから外枠へcaptureが移ってもドラッグを続け、DOMの変位を更新する', async () => {
+    const f = setup(); f.fire('onPointerdown');
+    expect(f.capture.setPointerCapture).toHaveBeenCalledWith(7);
+    f.fire('onLostpointercapture'); // targetは子リンク、currentTargetは外枠
+    expect(f.cancel).not.toHaveBeenCalled();
+    f.fire('onPointermove', f.event(100, 0)); await nextTick();
+    expect(f.surface().children.find(n => n.type === 'div')!.props.style).toMatchObject({ transform: expect.stringContaining('translateX(100px)') });
+    f.fire('onPointerup', f.event(100, 0)); expect(f.finish).toHaveBeenCalledOnce(); f.app.unmount();
+  });
+  it('外枠自身がcaptureを失った場合だけキャンセルする', () => {
+    const f = setup(); f.fire('onPointerdown');
+    f.fire('onLostpointercapture', { ...f.event(), target: f.capture } as unknown as ReturnType<typeof f.event>);
+    expect(f.cancel).toHaveBeenCalledOnce();
+    f.fire('onPointerup'); expect(f.finish).not.toHaveBeenCalled(); f.app.unmount();
+  });
   it('スワイプで次の記事へ交代した後のclickを抑止し、その後の普通のタップは通す', async () => {
     const f = setup(); const original = f.surface(); f.fire('onPointerdown'); f.fire('onPointermove', f.event(100,0)); f.fire('onPointerup', f.event(100,0));
     await nextTick(); expect(f.surface()).toBe(original); expect(f.finish).toHaveBeenCalledOnce();
     f.fire('onLostpointercapture'); const trailing = f.fire('onClickCapture'); expect(trailing.preventDefault).toHaveBeenCalledOnce(); expect(trailing.stopPropagation).toHaveBeenCalledOnce();
     f.fire('onPointerdown'); f.fire('onPointerup'); const tap = f.fire('onClickCapture'); expect(tap.preventDefault).not.toHaveBeenCalled(); f.app.unmount();
   });
-  it('縦方向に決まった移動は後から横へ動いても捕捉せず、ボタンからの操作も捕捉しない', () => {
-    const f = setup(); f.fire('onPointerdown'); f.fire('onPointermove', f.event(1,30)); f.fire('onPointermove', f.event(100,40));
-    expect(f.capture.setPointerCapture).not.toHaveBeenCalled(); f.fire('onPointercancel');
+  it('縦方向の移動はスクロールを抑止せず、ボタンからの操作は開始しない', () => {
+    const f = setup(); f.fire('onPointerdown'); const vertical = f.fire('onPointermove', f.event(1,30)); const diagonal = f.fire('onPointermove', f.event(100,40));
+    expect(vertical.preventDefault).not.toHaveBeenCalled(); expect(diagonal.preventDefault).not.toHaveBeenCalled(); f.fire('onPointercancel');
     f.fire('onPointerdown', f.event(0,0,true)); expect(f.start).toHaveBeenCalledOnce(); f.app.unmount();
   });
   it('短い横ドラッグの後のclickも記事を開かず、キャンセル後は次のタップを妨げない', () => {
