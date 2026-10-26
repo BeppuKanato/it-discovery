@@ -84,3 +84,13 @@ export const articleInterestBatches = sqliteTable('article_interest_batches', {
   requestKey: text('request_key').notNull(),
   results: text('results').notNull(),
 }, (table) => [check('batch_positive_revision', sql`${table.revision} > 0`)]);
+
+// 会話本文は自動保存しない。上限カウンターと、利用者が選んで残した発見だけを保存する。
+export const companionUsage = sqliteTable('companion_usage', {
+  period: text('period').primaryKey(), requests: integer('requests').notNull(),
+  lastRequestedAt: integer('last_requested_at').notNull(),
+}, table => [check('companion_positive_requests', sql`${table.requests} > 0`)]);
+export const discoveryNotes = sqliteTable('discovery_notes', {
+  id: integer('id').primaryKey({ autoIncrement: true }), text: text('text').notNull(),
+  articleId: integer('article_id'), articleTitle: text('article_title'), createdAt: text('created_at').notNull(),
+});

@@ -1,3 +1,4 @@
+import { CompanionModule } from './companion/companion.module';
 import authConfig from './auth/models/auth-config';
 import { AuthModule } from './auth/auth.module';
 import { CollectionModule } from './collection/collection.module';
@@ -9,7 +10,7 @@ import { ArticlesModule } from './articles/articles.module';
 import { SettingsModule } from './settings/settings.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, load: [serverConfig, authConfig] }), AuthModule, ArticlesModule, SettingsModule, CollectionModule],
+  imports: [CompanionModule, ConfigModule.forRoot({ isGlobal: true, load: [serverConfig, authConfig] }), AuthModule, ArticlesModule, SettingsModule, CollectionModule],
   controllers: [HealthController],
 })
 export class AppModule {}
