@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -43,3 +44,39 @@ jobs:
         run: docker build --tag it-discovery-api:check .
       - name: Check recreation with persistent SQLite
         run: bash scripts/check-docker-persistence.sh it-discovery-api:check
+
+  # PRでは公開しない。mainの確認が両方成功した場合だけ、VM用イメージを保存する。
+  publish-api:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [check, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GHCR_USER: ${{ github.actor }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build versioned backend image
+        # GHCRの名前は小文字にする。完全なコミットSHAをタグにして更新対象を明示する。
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          image="ghcr.io/${REPOSITORY,,}/api"
+          echo "API_IMAGE=$image:$GITHUB_SHA" >> "$GITHUB_ENV"
+          docker build --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" --label "org.opencontainers.image.revision=$GITHUB_SHA" --tag "$image:$GITHUB_SHA" .
+      - name: Sign in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+      - name: Publish backend image
+        run: |
+          docker push "$API_IMAGE"
+          echo "### VMで取得するイメージ" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$API_IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Sign out of GHCR
+        if: always()
+        run: docker logout ghcr.io

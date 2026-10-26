@@ -54,6 +54,50 @@ docker compose logs --tail 100 api
 
 停止猶予は60秒。Nest shutdown hooksで収集の通信を中断して処理終了を待ち、その後DBを閉じる。ログはstdout/stderrに出し、Composeで1ファイル10MiB・3世代に制限する。
 
+## Compute Engineでビルドせず起動する
+
+e2-micro上で `docker compose build` や `up --build` は実行しない。GitHub ActionsのCIが成功すると、実行概要にGHCRのイメージ名が表示される。コード取得後、VMでは以下を設定する。これはAPIのVM内確認までの手順で、外部公開・HTTPS・Googleログインは別途設定する。
+
+1. データ用ディスクを `/mnt/disks/it-discovery-data` にマウントし、UUIDで `/etc/fstab` に登録する。`mountpoint -q /mnt/disks/it-discovery-data` の成功を確認してから、DBフォルダを作る。
+
+```sh
+mountpoint -q /mnt/disks/it-discovery-data && sudo install -d -o 1000 -g 1000 -m 0750 /mnt/disks/it-discovery-data/database
+```
+
+2. リポジトリのルートにVM固有の `compose.override.yml` を作る。標準のdata volumeの実体をデータ用ディスクに置く。既存DBを保存したvolumeの設定変更には移行が必要なので、この例は初回起動用。
+
+```yaml
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/disks/it-discovery-data/database
+```
+
+3. ディスクのマウント前や失敗時にDockerが別の保存先で起動しないよう、専用VMのDockerサービスに依存関係を追加する。`sudo mkdir -p /etc/systemd/system/docker.service.d` の後、同ディレクトリの `data-disk.conf` に次を保存し、`sudo systemctl daemon-reload` と `sudo systemctl restart docker` を実行する。restartは稼働中コンテナに影響するため、初回起動前に行う。
+
+```ini
+[Unit]
+RequiresMountsFor=/mnt/disks/it-discovery-data
+
+[Service]
+ExecStartPre=/usr/bin/mountpoint -q /mnt/disks/it-discovery-data
+```
+
+4. Git管理しない `.env` に `API_IMAGE=ghcr.io/beppukanato/it-discovery/api:<完全なコミットSHA>` を設定する。`<完全なコミットSHA>` はActionsの実行概要の実値へ置き換える。既存の.envに他の値がある場合は保持する。パッケージがPublicならGHCRへのログインは不要。Privateなら事前にread:packages権限の認証をVM上で行う。トークンをリポジトリ・コマンド引数・チャットへ貼らない。
+
+```sh
+sudo docker compose config --quiet
+sudo docker compose pull api
+sudo docker compose up -d --no-build --pull never api
+sudo docker compose ps
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+DBは `/mnt/disks/it-discovery-data/database/it-discovery.db` に保存される。更新は旧API_IMAGEの値を控え、.envの版を変更して同じpull・upを行う。DB変更を伴う更新では、前述の外部バックアップと互換性確認も必要。VMへの自動反映は行わない。再起動後にもマウント・Docker・APIのhealthを確認する。
+
 ## 再作成の検証
 
 GitHub Actionsのdockerジョブで本番イメージを構築し、`scripts/check-docker-persistence.sh`を実行する。CI専用の一時volumeに記事・気になる・ピン・既読を保存し、正常停止（exit 0）→コンテナ削除→同じvolumeで起動→HTTP一覧の値を確認する。終了時にその一時volumeだけを削除する。既存のComposeや本番volumeへは接続しない。
