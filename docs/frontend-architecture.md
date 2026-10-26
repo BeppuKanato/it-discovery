@@ -151,3 +151,7 @@ App→AuthenticationGate→AuthenticatedApplication→ApplicationStartupGate→�
 SortingCardは座標・Pointer capture・クリック抑止・ドラッグ中の描画だけを持つ。仕分けVMはSwipeGestureへ判定を依頼し、確定後のdepartingを200msだけ保持してからSessionを進める。退出中の二重入力を止め、Pageを閉じた場合は予約を解除する。保存は既存のPendingInterestModelへ依頼する。[スワイプの詳細と回帰確認](sorting-ui.md#スワイプ不具合の回帰確認53)を参照。
 
 一覧の取得先条件は一覧VM→Model→ApiClientへ渡し、APIのSQL段階で絞る。取得先の選択肢だけは別GETで読み込む。[取得先フィルターの責任・状態・実行順序](source-filter.md)を参照。
+
+## 相棒と発見ノート
+
+AuthenticatedApplicationに全ページ共通の相棒・会話のViewと下部ナビを配置する。共通VMが会話と選択した記事の文脈を持ち、一覧・仕分けVMの記事配列を共有Storeへ移さない。Pageが記事を選んだイベントを共通Appへ渡す。会話の開始/終了は一覧Pageを再作成しない。ノートの保存・削除はCompanionModel経由でAPIへ依頼し、成功後だけ表示を変更する。詳しい依存関係・実行順序・状態は[相棒の設計](companion.md)。
