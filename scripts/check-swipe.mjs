@@ -12,6 +12,7 @@ const server = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/v
   stdio: 'inherit',
 });
 let browser;
+let diagnosticsPage;
 try {
   for (let attempt = 0; ; attempt++) {
     try { if ((await fetch(origin)).ok) break; } catch {}
@@ -20,7 +21,7 @@ try {
   }
   browser = await chromium.launch(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {});
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  const page = await context.newPage();
+  const page = await context.newPage(); diagnosticsPage = page;
   page.setDefaultTimeout(15000);
   const articles = [3, 2, 1].map(articleId => ({
     articleId, url: `https://example.com/${articleId}`, title: `スワイプ検証記事${articleId}`,
@@ -99,6 +100,9 @@ try {
   assert.equal(await page.getByRole('link', { name: 'スワイプ検証記事2（別タブで開く）' }).count(), 0);
   await context.close();
   console.log('実タッチ入力: 追従・右登録・左見送り・短距離・縦スクロール・戻す・取得先フィルター OK');
+} catch (error) {
+  if (diagnosticsPage) console.error('検証画面:', await diagnosticsPage.locator('body').innerText().catch(() => '取得不可'));
+  throw error;
 } finally {
   await browser?.close();
   server.kill('SIGTERM');

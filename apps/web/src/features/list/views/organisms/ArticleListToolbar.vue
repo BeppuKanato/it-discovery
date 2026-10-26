@@ -27,7 +27,7 @@ function select(value: unknown): void {
       :allow-empty="false" fluid aria-label="記事一覧の種類" class="list-tabs" @update:model-value="select" />
     <div class="source-filter">
       <label for="article-source">取得先</label>
-      <Select input-id="article-source" :model-value="sourceId" :options="sourceOptions" option-label="siteName" option-value="sourceId"
+      <Select input-id="article-source" aria-label="取得先" :model-value="sourceId" :options="sourceOptions" option-label="siteName" option-value="sourceId"
         :loading="sourcesLoading" :disabled="disabled || sourcesLoading" fluid @update:model-value="selectSource" />
     </div>
     <Button type="button" label="仕分けを始める" outlined :disabled="disabled" class="sorting-start" @click="emit('startSorting')" />
