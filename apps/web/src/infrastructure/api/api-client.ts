@@ -9,6 +9,8 @@ import { isSortingCandidatesResponse } from './sorting-candidates-response';
 import { isArticlePageResponse } from './article-page-response';
 import { isArticleStateResponse } from './article-state-response';
 import { ApiError } from './api-error';
+import type { ArticleSource } from '@it-discovery/contracts';
+import { isArticleSources } from './article-sources-response';
 
 // 通信設定・JSON検証だけを担当する。保存キュー・操作ID・自動再送は持たない。
 export class ApiClient {
@@ -36,6 +38,12 @@ export class ApiClient {
   async getArticlePage(request: ArticlePageRequest, signal?: AbortSignal): Promise<ArticlePageResponse> {
     const { data } = await this.http.get<unknown>('/articles', { params: request, signal });
     if (!isArticlePageResponse(data, request.cursor)) throw new Error('一覧の応答を確認できませんでした。');
+    return data;
+  }
+
+  async getArticleSources(signal?: AbortSignal): Promise<ArticleSource[]> {
+    const { data } = await this.http.get<unknown>('/sources', { signal });
+    if (!isArticleSources(data)) throw new Error('取得先の応答を確認できませんでした。');
     return data;
   }
 

@@ -1,5 +1,5 @@
 import { computed, reactive, readonly, ref, shallowRef } from 'vue';
-import type { ArticleListItem, ArticleListKind, ArticleStateValue } from '@it-discovery/contracts';
+import type { ArticleListItem, ArticleListKind, ArticleStateValue, ArticleSource } from '@it-discovery/contracts';
 import { ArticleOpeningError, type ArticleOpeningModel } from '../../articles/models/article-opening.model';
 import type { ArticleListModel } from '../models/article-list.model';
 import { ArticleStateError, type ArticleField, type ArticleStateModel } from '../../articles/models/article-state.model';
@@ -17,6 +17,12 @@ export function useArticleListViewModel(list: ArticleListModel, state: ArticleSt
   const articles = shallowRef<ArticleListItem[]>([]);
   // refは画面へ通知する値。内部の続き位置・要求番号は下の通常変数へ分ける。
   const selectedKind = ref<ArticleListKind>('all');
+  const selectedSourceId = ref<string | null>(null);
+  // 現在の20件とは独立した選択肢。記事が0件の取得先も選択できる。
+  const sources = shallowRef<ArticleSource[]>([]);
+  const sourcesLoading = ref(false);
+  const sourcesError = ref<string | null>(null);
+  let sourcesController: AbortController | null = null;
   const hasMore = ref(false);
   const listLoading = ref<LoadMode | null>(null);
   const listError = ref<ListError | null>(null);
@@ -47,7 +53,9 @@ export function useArticleListViewModel(list: ArticleListModel, state: ArticleSt
   const canLoadMore = computed(() => !disposed && hasMore.value && listLoading.value === null && listError.value === null);
 
   function matches(article: ArticleListItem): boolean {
-    return !removedArticles.has(article.articleId) && (selectedKind.value === 'all' || article.state.interested);
+    return !removedArticles.has(article.articleId)
+      && (selectedSourceId.value === null || article.source.sourceId === selectedSourceId.value)
+      && (selectedKind.value === 'all' || article.state.interested);
   }
 
   async function loadPage(mode: LoadMode): Promise<void> {
@@ -61,7 +69,7 @@ export function useArticleListViewModel(list: ArticleListModel, state: ArticleSt
     listLoading.value = mode;
     listError.value = null;
     try {
-      const page = await list.getPage(selectedKind.value, mode === 'append' ? nextCursor ?? undefined : undefined, controller.signal);
+      const page = await list.getPage(selectedKind.value, mode === 'append' ? nextCursor ?? undefined : undefined, controller.signal, selectedSourceId.value ?? undefined);
       if (disposed || requestGeneration !== generation) return;
       const items = new Map((mode === 'append' ? articles.value : []).map(article => [article.articleId, article]));
       for (const fetched of page.articles) {
@@ -92,7 +100,27 @@ export function useArticleListViewModel(list: ArticleListModel, state: ArticleSt
   function initialize(): Promise<void> {
     if (initialized || disposed) return Promise.resolve();
     initialized = true;
-    return loadPage('initial');
+    return Promise.all([loadPage('initial'), loadSources()]).then(() => undefined);
+  }
+  async function loadSources(): Promise<void> {
+    if (disposed || sourcesLoading.value) return;
+    sourcesLoading.value = true; sourcesError.value = null;
+    const controller = new AbortController(); sourcesController = controller;
+    try {
+      const result = await list.getSources(controller.signal);
+      if (!disposed) sources.value = result;
+    } catch {
+      if (!disposed) sourcesError.value = '取得先を読み込めませんでした。';
+    } finally {
+      if (!disposed) sourcesLoading.value = false;
+      sourcesController = null;
+    }
+  }
+  function changeSource(sourceId: string | null): Promise<void> {
+    if (disposed || sourceId === selectedSourceId.value
+      || (sourceId !== null && !sources.value.some(source => source.sourceId === sourceId))) return Promise.resolve();
+    selectedSourceId.value = sourceId;
+    return resetList();
   }
   function refreshArticles(): Promise<void> {
     if (listLoading.value === 'initial' || listLoading.value === 'refresh') return Promise.resolve();
@@ -100,8 +128,11 @@ export function useArticleListViewModel(list: ArticleListModel, state: ArticleSt
   }
   function changeListKind(kind: ArticleListKind): Promise<void> {
     if (disposed || kind === selectedKind.value) return Promise.resolve();
-    cancelPull();
     selectedKind.value = kind;
+    return resetList();
+  }
+  function resetList(): Promise<void> {
+    cancelPull();
     articles.value = [];
     nextCursor = null;
     hasMore.value = false;
@@ -257,13 +288,15 @@ export function useArticleListViewModel(list: ArticleListModel, state: ArticleSt
   function dispose(): void {
     disposed = true;
     generation++;
-    loadController?.abort();
+    loadController?.abort(); sourcesController?.abort();
     for (const controller of saveControllers.values()) controller.abort();
     for (const controller of readControllers.values()) controller.abort();
     cancelPull();
   }
 
-  return { articles: readonly(articles), selectedKind: readonly(selectedKind), hasMore: readonly(hasMore),
+  return { articles: readonly(articles), selectedKind: readonly(selectedKind), selectedSourceId: readonly(selectedSourceId),
+    sources: readonly(sources), sourcesLoading: readonly(sourcesLoading), sourcesError: readonly(sourcesError), changeSource, loadSources,
+    hasMore: readonly(hasMore),
     listLoading: readonly(listLoading), listError: readonly(listError), canLoadMore,
     openingErrors: readonly(openingErrors), readStatus: readonly(readStatus), savingByArticle: readonly(savingByArticle), saveErrors: readonly(saveErrors), notice: readonly(notice),
     initialize, refreshArticles, changeListKind, loadMoreArticles, retryArticleLoad,

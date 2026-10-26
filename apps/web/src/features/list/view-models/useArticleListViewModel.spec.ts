@@ -15,10 +15,11 @@ function deferred<T>() {
 }
 function setup() {
   const getArticlePage = vi.fn().mockResolvedValue(page([2, 1], 'next'));
+  const getArticleSources = vi.fn().mockResolvedValue([{ sourceId: 'zenn', siteName: 'Zenn', iconUrl: null }, { sourceId: 'other', siteName: 'Other', iconUrl: null }]);
   const updateArticleState = vi.fn(); const getArticleState = vi.fn();
   const open = vi.fn();
-  const vm = useArticleListViewModel(new ArticleListModel({ getArticlePage }), new ArticleStateModel({ updateArticleState, getArticleState }), new ArticleOpeningModel({ open }));
-  return { vm, getArticlePage, updateArticleState, getArticleState, open };
+  const vm = useArticleListViewModel(new ArticleListModel({ getArticlePage, getArticleSources }), new ArticleStateModel({ updateArticleState, getArticleState }), new ArticleOpeningModel({ open }));
+  return { vm, getArticleSources, getArticlePage, updateArticleState, getArticleState, open };
 }
 const saved = (state: Partial<ArticleStateValue> = {}) => ({ articleId: 1, state: { ...article(1).state, ...state } });
 
@@ -62,6 +63,35 @@ describe('一覧画面の状態と操作', () => {
     getArticlePage.mockResolvedValueOnce(page([1])); await vm.retryArticleLoad();
     expect(getArticlePage.mock.lastCall?.[0]).toEqual({ kind: 'all', limit: 20, ...(mode === 'append' ? { cursor: 'next' } : {}) });
     expect(vm.listError.value).toBeNull();
+  });
+  it('取得先切り替え・気になる・追加・更新に同じ条件を使い、遅い応答を混ぜない', async () => {
+    const { vm, getArticlePage } = setup(); await vm.initialize();
+    const old = deferred<ArticlePageResponse>(); getArticlePage.mockReturnValueOnce(old.promise);
+    const previous = vm.refreshArticles();
+    getArticlePage.mockResolvedValueOnce(page([3], 'source-next')); await vm.changeSource('zenn');
+    old.resolve({ ...page([9]), articles: [{ ...article(9), source: { ...article(9).source, sourceId: 'other' } }] }); await previous;
+    expect(vm.articles.value.map(item => item.articleId)).toEqual([3]);
+    await vm.loadMoreArticles(); expect(getArticlePage.mock.lastCall?.[0]).toEqual({ kind: 'all', sourceId: 'zenn', limit: 20, cursor: 'source-next' });
+    getArticlePage.mockResolvedValueOnce(page([])); await vm.changeListKind('interested');
+    expect(getArticlePage.mock.lastCall?.[0]).toEqual({ kind: 'interested', sourceId: 'zenn', limit: 20 });
+    await vm.refreshArticles(); expect(getArticlePage.mock.lastCall?.[0].sourceId).toBe('zenn');
+    await vm.changeSource(null); expect(getArticlePage.mock.lastCall?.[0]).toEqual({ kind: 'interested', limit: 20 });
+  });
+  it('保存途中で別取得先へ移っても保存結果から対象外の記事を挿入しない', async () => {
+    const { vm, getArticlePage, updateArticleState } = setup(); await vm.initialize();
+    const saving = deferred<ReturnType<typeof saved>>(); updateArticleState.mockReturnValueOnce(saving.promise);
+    const operation = vm.toggleInterest(1);
+    getArticlePage.mockResolvedValue(page([])); await vm.changeListKind('interested'); await vm.changeSource('other');
+    saving.resolve(saved({ interested: true })); await operation;
+    expect(vm.articles.value).toEqual([]);
+  });
+  it('取得先の取得失敗は一覧表示を妨げず、選択肢だけ再試行できる', async () => {
+    const { vm, getArticleSources, getArticlePage } = setup();
+    getArticleSources.mockRejectedValueOnce(new Error('offline')); await vm.initialize();
+    expect(vm.articles.value).toHaveLength(2); expect(vm.sourcesError.value).toContain('取得先');
+    await vm.loadSources(); expect(vm.sources.value).toHaveLength(2); expect(vm.sourcesError.value).toBeNull();
+    expect(getArticlePage).toHaveBeenCalledOnce();
+    await vm.changeSource('not-configured'); expect(vm.selectedSourceId.value).toBeNull();
   });
   it('保存成功まで登録値を変えず、同じ記事の二重操作だけを防ぐ', async () => {
     const { vm, updateArticleState } = setup(); await vm.initialize();

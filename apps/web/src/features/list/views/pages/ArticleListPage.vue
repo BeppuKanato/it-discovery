@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
 import Message from 'primevue/message';
+import Button from 'primevue/button';
 import type { ArticleListKind } from '@it-discovery/contracts';
 import { useArticleListViewModel } from '../../view-models/useArticleListViewModel';
 import type { ArticleListModel } from '../../models/article-list.model';
@@ -15,7 +16,7 @@ import ArticleListContent from '../organisms/ArticleListContent.vue';
 const props = defineProps<{ listModel: ArticleListModel; stateModel: ArticleStateModel; openingModel: ArticleOpeningModel }>();
 const emit = defineEmits<{ startSorting: [] }>();
 const vm = useArticleListViewModel(props.listModel, props.stateModel, props.openingModel);
-const { articles, selectedKind, hasMore, listLoading, listError, notice, savingByArticle, readStatus, openingErrors, saveErrors,
+const { articles, selectedKind, selectedSourceId, sources, sourcesLoading, sourcesError, hasMore, listLoading, listError, notice, savingByArticle, readStatus, openingErrors, saveErrors,
   refreshArticles, loadMoreArticles, retryArticleLoad, togglePin, toggleInterest, retryStateCheck, openArticle, retryReadSave,
   pullDistance, pullReady, finishPull, cancelPull } = vm;
 onMounted(() => { void vm.initialize(); });
@@ -24,6 +25,10 @@ onUnmounted(() => { vm.dispose(); });
 function selectKind(value: ArticleListKind): void {
   if (value !== selectedKind.value) window.scrollTo({ top: 0 });
   void vm.changeListKind(value);
+}
+function selectSource(value: string | null): void {
+  if (value !== selectedSourceId.value) window.scrollTo({ top: 0 });
+  void vm.changeSource(value);
 }
 // Viewはブラウザのイベントを値へ変換する。一本指・方向・距離などの判定はModelへ任せる。
 // DOMに関する事実（先頭にいるか、操作部品を触れたか）だけを取り出す。
@@ -53,10 +58,13 @@ function touchMove(event: TouchEvent): void {
       <p class="intro-description">{{ selectedKind === 'all' ? 'ひとつの出会いが、次のアイデアに。' : 'あとで読みたい発見を、ひとつの場所に。' }}</p>
     </template>
     <template #toolbar>
-      <ArticleListToolbar :kind="selectedKind" :count="articles.length" :refreshing="listLoading === 'refresh'"
+      <ArticleListToolbar :source-id="selectedSourceId" :sources="sources" :sources-loading="sourcesLoading" @source="selectSource" :kind="selectedKind" :count="articles.length" :refreshing="listLoading === 'refresh'"
         :disabled="false" :busy="listLoading === 'initial' || listLoading === 'refresh'" @start-sorting="emit('startSorting')" @select="selectKind" @refresh="refreshArticles" />
     </template>
     <template #status>
+      <Message v-if="sourcesError" severity="warn" :closable="false">{{ sourcesError }}
+        <Button type="button" label="取得先を再試行" text :disabled="sourcesLoading" @click="vm.loadSources" />
+      </Message>
       <Message v-if="notice" severity="info" :closable="false" role="status">{{ notice }}</Message>
     </template>
     <!-- 名前なしの内容はLayoutの通常のslotへ入る。子のemitとVMの操作をここで接続する。 -->
