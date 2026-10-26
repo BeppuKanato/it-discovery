@@ -15,13 +15,17 @@ import SortingLayout from '../templates/SortingLayout.vue';
 import SortingCard from '../organisms/SortingCard.vue';
 
 const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpeningModel; stateModel: ArticleStateModel; createPendingInterests: () => PendingInterestModel; batchSync: InterestBatchSyncModel; initialCandidates?: readonly ArticleListItem[] }>();
-const emit = defineEmits<{ exit: [] }>();
+const emit = defineEmits<{ exit: []; articleContext: [article: ArticleListItem] }>();
 const vm = useSortingViewModel(props.sortingModel, props.openingModel, props.stateModel, props.createPendingInterests(), props.batchSync);
 const { finishing, finished, finishError, missingIds, storageError, pendingWrites, loading, error, openingError, currentArticle, currentReadStatus, total, processedCount, interestedIds,
   complete, canUndo, canJudge, canNext, canExit, swipeOffset, departing } = vm;
 onMounted(() => { void vm.initialize(props.initialCandidates); vm.setOnline(navigator.onLine); window.addEventListener('beforeunload', beforeUnload); window.addEventListener('online', online); window.addEventListener('offline', offline); });
 onUnmounted(() => { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('online',online); window.removeEventListener('offline',offline); vm.dispose(); });
 watch(finished, value => { if (value) emit('exit'); });
+function openForReading(): void {
+  if (currentArticle.value) emit('articleContext', currentArticle.value);
+  void vm.openCurrentArticle();
+}
 function exit(): void { if (canExit.value) void vm.finishSorting(); }
 function online(): void { vm.setOnline(true); }
 function offline(): void { vm.setOnline(false); }
@@ -60,7 +64,7 @@ function beforeUnload(event: BeforeUnloadEvent): void {
       <ProgressBar :value="processedCount / total * 100" :show-value="false" aria-label="仕分けの進行" class="progress-bar" />
       <template v-if="currentArticle">
         <SortingCard :article="currentArticle" :offset="swipeOffset" :departing="departing" :swipe-enabled="canJudge" :move-pointer="vm.moveSwipe" :read-status="currentReadStatus?.phase"
-          @open="vm.openCurrentArticle" @start="vm.beginSwipe" @finish="vm.finishSwipe" @cancel="vm.cancelSwipe" @decide="vm.animateDecision" />
+          @open="openForReading" @start="vm.beginSwipe" @finish="vm.finishSwipe" @cancel="vm.cancelSwipe" @decide="vm.animateDecision" />
         <Message v-if="openingError" severity="error" :closable="false" class="status">{{ openingError }}</Message>
         <div v-if="currentReadStatus && currentReadStatus.phase !== 'saving'" class="status" role="status">
           <p>{{ currentReadStatus.message }}</p><Button type="button" label="既読を保存し直す" text size="small" @click="vm.retryReadSave" />

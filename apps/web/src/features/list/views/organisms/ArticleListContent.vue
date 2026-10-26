@@ -45,7 +45,7 @@ onUnmounted(() => observer?.disconnect());
       <!-- v-forの繰り返し範囲は、このliの開始から終了まで。articleは各回の記事1件。
            子カードの通知にIDを付けることで、Pageは対象の記事を指定してVMを呼べる。 -->
       <li v-for="article in articles" :key="article.articleId">
-        <ArticleCard :article="article" editable :read-status="readStatus.get(article.articleId)?.phase" :pending="savingByArticle.get(article.articleId)"
+        <ArticleCard compact :article="article" editable :read-status="readStatus.get(article.articleId)?.phase" :pending="savingByArticle.get(article.articleId)"
           :actions-disabled="!!saveErrors.get(article.articleId)?.uncertain"
           @open="emit('open', article.articleId)" @pin="emit('pin', article.articleId)" @interest="emit('interest', article.articleId)" />
         <Message v-if="openingErrors.has(article.articleId)" severity="error" :closable="false" class="save-error">

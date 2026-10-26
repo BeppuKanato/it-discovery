@@ -7,7 +7,7 @@ import type { ArticleListKind, ArticleSource } from '@it-discovery/contracts';
 
 // Organism：一覧の選択と更新をまとめる。選択値は親が持ち、ここではコピーして保存しない。
 const props = defineProps<{ sourceId: string | null; sources: readonly ArticleSource[]; sourcesLoading: boolean; kind: ArticleListKind; count: number; disabled: boolean; busy: boolean; refreshing: boolean }>();
-const emit = defineEmits<{ select: [kind: ArticleListKind]; source: [sourceId: string | null]; refresh: []; startSorting: [] }>();
+const emit = defineEmits<{ select: [kind: ArticleListKind]; source: [sourceId: string | null]; refresh: [] }>();
 const sourceOptions = computed(() => [{ sourceId: null, siteName: 'すべての取得先' }, ...props.sources]);
 const options = [{ label: 'すべて', value: 'all' }, { label: '気になる', value: 'interested' }];
 function selectSource(value: unknown): void {
@@ -30,7 +30,6 @@ function select(value: unknown): void {
       <Select input-id="article-source" aria-label="取得先" :model-value="sourceId" :options="sourceOptions" option-label="siteName" option-value="sourceId"
         :loading="sourcesLoading" :disabled="disabled || sourcesLoading" fluid @update:model-value="selectSource" />
     </div>
-    <Button type="button" label="仕分けを始める" outlined :disabled="disabled" class="sorting-start" @click="emit('startSorting')" />
     <div class="caption">
       <span>取得した日時が新しい順<span v-if="count"> · {{ count }}件</span></span>
       <!-- 一覧取得中もタブ切り替えは可能。更新ボタンの連打だけをbusyで止める。 -->

@@ -1,3 +1,5 @@
+import type { CompanionChatRequest, CompanionChatResponse, DiscoveryNote, DiscoveryNoteRequest } from '@it-discovery/contracts';
+import { isDiscoveryNote } from './companion-response';
 import type { AuthSession } from '../auth/auth-session';
 import { InterestBatchError } from '../../features/sorting/models/interest-batch-sync.model';
 import type { PendingInterestBatch } from '../../features/sorting/models/pending-interest';
@@ -100,6 +102,26 @@ export class ApiClient {
 
   private stateError(error: unknown): ApiError {
     return error instanceof ApiError ? error : new ApiError(axios.isAxiosError(error) ? error.response?.status : undefined);
+  }
+
+  async chat(request: CompanionChatRequest, signal?: AbortSignal): Promise<CompanionChatResponse> {
+    const { data } = await this.http.post<unknown>('/companion/chat', request, { signal, timeout: 25_000 });
+    if (!data || typeof data !== 'object' || !('text' in data) || typeof data.text !== 'string' || !data.text.trim() || data.text.length > 1600) throw new Error('会話の応答が不正です。');
+    return { text: data.text };
+  }
+  async getDiscoveryNotes(signal?: AbortSignal): Promise<DiscoveryNote[]> {
+    const { data } = await this.http.get<unknown>('/companion/notes', { signal });
+    if (!Array.isArray(data) || data.length > 100 || !data.every(isDiscoveryNote)) throw new Error('ノートの応答が不正です。');
+    return data;
+  }
+  async saveDiscoveryNote(request: DiscoveryNoteRequest, signal?: AbortSignal): Promise<DiscoveryNote> {
+    const { data } = await this.http.post<unknown>('/companion/notes', request, { signal });
+    if (!isDiscoveryNote(data)) throw new Error('保存結果が不正です。');
+    return data;
+  }
+  async deleteDiscoveryNote(id: number, signal?: AbortSignal): Promise<void> {
+    const { data } = await this.http.delete<unknown>(`/companion/notes/${id}`, { signal });
+    if (!data || typeof data !== 'object' || !('deleted' in data) || data.deleted !== true) throw new Error('削除結果が不正です。');
   }
 
   async getHealth(): Promise<HealthResponse> {

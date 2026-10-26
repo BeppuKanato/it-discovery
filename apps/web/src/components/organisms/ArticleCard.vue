@@ -8,7 +8,7 @@ import { articleCardTokens } from '../../app/ui-theme';
 import SourceBadge from '../molecules/SourceBadge.vue';
 
 // definePropsは親から受け取る値の型を宣言するVueの機能。article自体はこの部品で変更しない。
-const props = defineProps<{ article: ArticleListItem; editable?: boolean; actionsDisabled?: boolean; readStatus?: 'saving' | 'failed' | 'uncertain'; pending?: 'pinned' | 'interested' | 'checking' }>();
+const props = defineProps<{ article: ArticleListItem; editable?: boolean; compact?: boolean; actionsDisabled?: boolean; readStatus?: 'saving' | 'failed' | 'uncertain'; pending?: 'pinned' | 'interested' | 'checking' }>();
 // defineEmitsは親へ通知するイベントの型を宣言する。DB保存は親へ任せ、この部品は表示を担当する。
 const emit = defineEmits<{ open: []; interest: []; pin: [] }>();
 // useIdは部品ごとに異なるIDを作る。同じカードを複数並べても見出しのIDが衝突しない。
@@ -24,7 +24,7 @@ function measureOverflow(): void {
   // 全文表示中に測ると省略なしになり、閉じるボタンまで消えるため測定しない。
   if (expanded.value) return;
   // scrollHeightは内容全体、clientHeightは表示領域の高さ。CSSで隠れた行があるか比べる。
-  canExpand.value = [...(copy.value?.querySelectorAll('h2,p') ?? [])]
+  canExpand.value = (!!props.compact && !!props.article.description) || [...(copy.value?.querySelectorAll('h2,p') ?? [])]
     .some((element) => element.scrollHeight > element.clientHeight + 1);
 }
 // onMountedはHTMLが画面に配置された後に実行する。幅が変わったときも省略を測り直す。
@@ -44,7 +44,7 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
 </script>
 
 <template>
-  <article :aria-labelledby="titleId" class="article-shell">
+  <article :aria-labelledby="titleId" class="article-shell" :class="{ compact }">
     <!-- :dtはPrimeVueの外観設定。#content/#footerはCardが用意する表示領域（名前付きslot）。 -->
     <Card class="article-card" :dt="articleCardTokens">
       <template #content>
@@ -108,21 +108,21 @@ const fullDate = new Intl.DateTimeFormat('ja-JP', { dateStyle: 'long', timeStyle
 <style scoped>
 .article-shell { min-width: 0; }
 .article-card { overflow: hidden; border: 1px solid var(--p-discovery-line); }
-.thumbnail-frame { padding: 7px; background: linear-gradient(135deg, var(--p-discovery-frame-start), var(--p-discovery-frame-end)); }
-.thumbnail { position: relative; display: flex; flex-direction: column; min-height: 244px; padding: 27px 18px 12px; border-radius: 15px; background: var(--p-discovery-paper); }
+.thumbnail-frame { padding: 2px; background: linear-gradient(135deg, var(--p-discovery-frame-start), var(--p-discovery-frame-end)); }
+.thumbnail { position: relative; display: flex; flex-direction: column; min-height: 164px; padding: 19px 18px 10px; border-radius: 19px; background: var(--p-discovery-paper); }
 .pin-state { position: absolute; top: 10px; left: 12px; font-size: 10px; }
-.pin-action { z-index: 2; position: absolute; top: 5px; left: 7px; width: 44px; height: 44px; color: var(--p-discovery-muted); }
+.pin-action { z-index: 2; position: absolute; top: 5px; right: 7px; width: 44px; height: 44px; color: var(--p-discovery-muted); }
 .pin-action.selected { color: var(--p-primary-color); background: var(--p-primary-50); }
 /* 部分着色は進捗率ではなく保存待ちの印。位置・大きさを変えず、スピナーも使わない。 */
 .pin-action.pending, .interest-action.pending { color: var(--p-primary-color); background: var(--p-primary-50); opacity: 1; }
 .interest-action { min-height: 38px; font-size: 10px; padding: 7px 10px; }
-.article-copy { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 161px; padding: 8px 3px 16px; text-align: center; }
+.article-copy { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 100px; padding: 8px 30px 12px 3px; text-align: left; }
 .article-link { color: inherit; text-decoration: none; }
 /* タイトルのリンクをサムネ領域まで広げる。ピンと文章展開の操作はその手前に置く。 */
 .article-link::after { content: ''; position: absolute; inset: 0; border-radius: 15px; }
 .article-link:focus-visible { outline: none; }
 .article-link:focus-visible::after { outline: 2px solid var(--p-primary-color); outline-offset: -3px; }
-h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; margin: 0; color: var(--p-discovery-ink); font-size: clamp(18px, 4.7vw, 22px); line-height: 1.55; letter-spacing: -.025em; overflow-wrap: anywhere; }
+h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; margin: 0; color: var(--p-discovery-ink); font-size: clamp(16px, 4vw, 18px); line-height: 1.55; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 13px 0 0; color: var(--p-discovery-muted); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 .expanded h2, .expanded .summary { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .thumbnail-bottom { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
@@ -132,5 +132,11 @@ h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; 
 .dates { color: var(--p-discovery-muted); font-size: 10px; }
 .read-state { color: var(--p-discovery-muted); font-size: 10px; }
 .states :deep(.p-tag) { font-size: 10px; }
+.compact .thumbnail { min-height: 110px; padding: 12px 14px 7px; }
+.compact .article-copy { min-height: 50px; padding: 4px 30px 8px 2px; }
+.compact h2 { -webkit-line-clamp: 2; font-size: 15px; line-height: 1.6; }
+.compact .summary { display: none; }
+.compact .expanded h2 { display: block; }
+.compact .expanded .summary { display: block; }
 @media (max-width: 350px) { .thumbnail { padding-inline: 13px; } h2 { font-size: 18px; } }
 </style>

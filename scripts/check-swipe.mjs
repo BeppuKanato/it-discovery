@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 // 実サイト・本番DBを使わず、実際のVue画面へタッチ入力を送る。
@@ -30,12 +31,18 @@ try {
     source: { sourceId: articleId === 2 ? 'other' : 'zenn', siteName: articleId === 2 ? 'Other' : 'Zenn', iconUrl: null },
     state: { interested: false, pinned: false, lastOpenedAt: null },
   }));
+  const notes = []; let chatCalls = 0;
   let unexpectedWrites = 0;
   await page.route(`${origin}/api/**`, async route => {
     if (route.request().method() !== 'GET') unexpectedWrites++;
     const url = new URL(route.request().url());
     const path = url.pathname;
     const sourceId = url.searchParams.get('sourceId');
+    if (path === '/api/companion/chat') { chatCalls++; await route.fulfill({ json: { text: 'その使い方は気になるね。' } }); return; }
+    if (path === '/api/companion/notes') {
+      if (route.request().method() === 'POST') notes.unshift({ id: 1, text: route.request().postDataJSON().text, articleId: null, articleTitle: null, createdAt: '2026-10-26T00:00:00Z' });
+      await route.fulfill({ json: route.request().method() === 'POST' ? notes[0] : notes }); return;
+    }
     const body = path === '/api/sorting/candidates' ? { articles }
       : path === '/api/sources' ? [{ sourceId: 'zenn', siteName: 'Zenn', iconUrl: null }, { sourceId: 'other', siteName: 'Other', iconUrl: null }]
       : path === '/api/articles' ? { articles: articles.filter(item => !sourceId || item.source.sourceId === sourceId), hasMore: false, nextCursor: null }
@@ -98,6 +105,35 @@ try {
   await filter.click(); await page.getByRole('option', { name: 'Zenn', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('.article-shell').length === 2);
   assert.equal(await page.getByRole('link', { name: 'スワイプ検証記事2（別タブで開く）' }).count(), 0);
+  await mkdir('artifacts/companion', { recursive: true });
+  // 素材が透過画像として読み込め、足元がナビの上に収まることを実DOMで確認する。
+  await page.locator('.character img').evaluate(image => image.decode());
+  const feet = await page.locator('.character').boundingBox();
+  const navigation = await page.getByRole('navigation', { name: 'メインメニュー' }).boundingBox();
+  assert.ok(feet.y + feet.height <= navigation.y);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.screenshot({ path: 'artifacts/companion/list.png' });
+  assert.equal(chatCalls, 0);
+  await page.getByRole('button', { name: '相棒と話す', exact: true }).click();
+  await page.getByRole('textbox', { name: '発見や疑問' }).fill('SQLiteはサーバーなしで使えるんだね');
+  await page.getByRole('button', { name: '送る', exact: true }).click();
+  await page.getByText('その使い方は気になるね。', { exact: false }).waitFor();
+  assert.equal(chatCalls, 1);
+  await page.screenshot({ path: 'artifacts/companion/conversation.png' });
+  await page.getByRole('button', { name: '発見ノートに残す', exact: true }).click();
+  await page.getByText('発見ノートに残しました。', { exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '発見ノート', exact: true }).click();
+  await page.getByText('SQLiteはサーバーなしで使えるんだね', { exact: true }).waitFor();
+  await page.screenshot({ path: 'artifacts/companion/notebook.png' });
+  await page.getByRole('button', { name: '相棒を隠す', exact: true }).click();
+  assert.equal(await page.locator('.companion-dock').count(), 0);
+  await page.getByRole('button', { name: '相棒を表示', exact: true }).click();
+  await page.getByRole('dialog', { name: '発見を話す', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  await page.getByRole('switch', { name: '相棒を表示する', exact: true }).waitFor();
+  await page.screenshot({ path: 'artifacts/companion/settings.png' });
   await context.close();
   console.log('実タッチ入力: 追従・右登録・左見送り・短距離・縦スクロール・戻す・取得先フィルター OK');
 } catch (error) {

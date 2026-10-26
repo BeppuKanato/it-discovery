@@ -39,6 +39,15 @@ jobs:
           swipe_chrome_bin="$(command -v google-chrome)"
           CHROME_BIN="$swipe_chrome_bin" node scripts/check-swipe.mjs
 
+      - name: Save companion UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: companion-ui
+          path: artifacts/companion
+          if-no-files-found: ignore
+          retention-days: 7
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
