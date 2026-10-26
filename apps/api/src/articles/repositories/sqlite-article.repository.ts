@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { articles, articleStates, sources } from '../../infrastructure/database/schema';
 import type { ArticleContent, ArticleIdentity, NewArticle } from '../models/article';
@@ -101,22 +101,22 @@ export class SqliteArticleRepository extends ArticleRepository {
     ), query.limit);
   }
 
-  // 対象条件をSQLのWHEREへ変換する。全記事を取得してから10件へ切り詰めない。
+  // 条件に合う全記事へ乱数の順序を付けてから最大件数を選ぶ。最新10件だけのシャッフルにはしない。
   findSortingCandidates(limit: number): ArticleListEntry[] {
     return this.findListEntries(and(
       isNull(articleStates.lastOpenedAt), eq(articleStates.interested, false), eq(articleStates.pinned, false),
-    ), limit);
+    ), limit, [sql`random()`]);
   }
 
-  // 一覧と仕分けで、表示情報の結合・並び順・DB形式からの変換を共有する。
-  private findListEntries(condition: SQL | undefined, limit: number): ArticleListEntry[] {
+  // 一覧と仕分けで、表示情報の結合・DB形式からの変換を共有する。
+  private findListEntries(condition: SQL | undefined, limit: number, order: SQL[] = [desc(articles.fetchedAt), desc(articles.articleId)]): ArticleListEntry[] {
     const rows = this.database.db.select({
       article: articles, state: articleStates,
       source: { sourceId: sources.sourceId, siteName: sources.siteName, iconUrl: sources.iconUrl },
     }).from(articles)
       .innerJoin(articleStates, eq(articles.articleId, articleStates.articleId))
       .innerJoin(sources, eq(articles.sourceId, sources.sourceId))
-      .where(condition).orderBy(desc(articles.fetchedAt), desc(articles.articleId)).limit(limit).all();
+      .where(condition).orderBy(...order).limit(limit).all();
     return rows.map((row) => ({ article: toArticle(row.article), state: toArticleState(row.state), source: row.source }));
   }
 

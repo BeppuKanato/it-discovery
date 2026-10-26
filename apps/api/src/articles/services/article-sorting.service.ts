@@ -12,7 +12,7 @@ export class ArticleSortingService {
     @Inject(ArticleInterestBatchRepository) private readonly batches: ArticleInterestBatchRepository,
   ) {}
 
-  // DBの現在の対象を最大10件取得する。取得だけでは登録・既読・見送りを変更しない。
+  // DBの現在の対象全体から最大10件をランダム抽出する。取得だけでは登録・既読・見送りを変更しない。
   getCandidates(): ArticleListEntry[] {
     return this.articles.findSortingCandidates(SORTING_LIMIT);
   }

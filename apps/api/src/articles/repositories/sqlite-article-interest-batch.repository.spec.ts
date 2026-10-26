@@ -39,16 +39,19 @@ describe('SQLiteの仕分け対象と一括登録', () => {
     if (oldPath === undefined) delete process.env['DATABASE_PATH']; else process.env['DATABASE_PATH'] = oldPath;
   });
 
-  it.each([0, 1, 7, 10, 15])('%s件の対象を最大10件・同時刻はID降順で返す', (count) => {
+  it.each([0, 1, 7, 10, 15])('%s件の対象から最大10件を重複なく返す', (count) => {
     const ids = Array.from({ length: count }, () => add());
     const result = service.getCandidates();
-    expect(result.map((entry) => entry.article.articleId)).toEqual(ids.reverse().slice(0, 10));
+    const selected = result.map((entry) => entry.article.articleId);
+    expect(selected).toHaveLength(Math.min(count, 10));
+    expect(new Set(selected).size).toBe(selected.length);
+    expect(selected.every((id) => ids.includes(id))).toBe(true);
     expect(result.every((entry) => !entry.state.interested && !entry.state.pinned && !entry.state.lastOpenedAt)).toBe(true);
     expect(result.every((entry) => entry.source.siteName === 'Zenn')).toBe(true);
     expect(database.db.select().from(articleInterestBatches).all()).toHaveLength(0);
   });
 
-  it('新しい既読・登録・ピン記事を除外してから件数制限し、公開日ではなく取得日で並べる', () => {
+  it('新しい既読・登録・ピン記事を除外し、古い記事も抽出対象にする', () => {
     const old = add(new Date('2026-10-01T00:00:00Z'));
     const newestEligible = add(new Date('2026-10-03T00:00:00Z'));
     const middle = add(new Date('2026-10-02T00:00:00Z'));
@@ -56,8 +59,29 @@ describe('SQLiteの仕分け対象と一括登録', () => {
       const id = add();
       articleService.updateState(id, i % 3 === 0 ? { interested: true } : i % 3 === 1 ? { pinned: true } : { lastOpenedAt: fetchedAt });
     }
-    expect(service.getCandidates().map((entry) => entry.article.articleId)).toEqual([newestEligible, middle, old]);
-    expect(service.getCandidates().map((entry) => entry.article.articleId)).toEqual([newestEligible, middle, old]);
+    expect(service.getCandidates().map((entry) => entry.article.articleId).sort((a, b) => a - b))
+      .toEqual([old, newestEligible, middle].sort((a, b) => a - b));
+    expect(service.getCandidates().map((entry) => entry.article.articleId).sort((a, b) => a - b))
+      .toEqual([old, newestEligible, middle].sort((a, b) => a - b));
+  });
+
+  it('最新10件に限定せず、取得ごとに抽出結果と順番を変える', () => {
+    const ids = Array.from({ length: 30 }, () => add());
+    // SQLiteの乱数だけを固定列へ置き換え、偶然に左右されず抽出範囲・再抽選を検証する。
+    let index = 0;
+    database.client.function('random', () => index++);
+    const first = service.getCandidates().map((entry) => entry.article.articleId);
+    index = 0;
+    database.client.function('random', () => -(index++));
+    const second = service.getCandidates().map((entry) => entry.article.articleId);
+    expect(first).toHaveLength(10);
+    expect(second).toHaveLength(10);
+    expect(first).not.toEqual(second);
+    expect(new Set([...first, ...second]).size).toBe(20);
+    expect(first.concat(second).some((id) => !ids.slice(-10).includes(id))).toBe(true);
+    // 通常の一覧は乱数関数の影響を受けず、これまでどおり新しい記事順。
+    const list = new SqliteArticleRepository(database).findPage({ kind: 'all', limit: 10 });
+    expect(list.map((entry) => entry.article.articleId)).toEqual(ids.slice(-10).reverse());
   });
 
   it('現在は既読・ピンありでも最終登録でき、送られない記事と他の状態を変えない', () => {
