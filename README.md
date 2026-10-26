@@ -171,3 +171,5 @@ python collect_samples.py --limit 5 --output data/samples
 - [技術構成](docs/architecture.md)に沿い、[開発Issue一覧](https://github.com/BeppuKanato/it-discovery/issues/1)の依存関係を確認して実装へ進む。
 
 推薦方法・類似度・興味の推定は今回の設計範囲外です。後から推薦を追加できる構造を検討します。Vue・Nest・SQLite・バックエンドのCompute Engine配置は決定済みです。フロント配信先・VMの具体構成・本人用アクセス制限・バックアップ方法は未確定です。
+
+Googleログインと本番の利用制限は[認証の構成・設定手順](docs/authentication.md)を参照。
