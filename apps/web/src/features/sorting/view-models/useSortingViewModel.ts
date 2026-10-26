@@ -32,6 +32,9 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
   const openingError = ref<string | null>(null);
   const readStatus = reactive(new Map<number, ReadStatus>());
   const gesture = reactive(new SwipeGesture());
+  // 退出中は現在のカードを描画したまま操作を止める。通信や端末保存はアニメーションを待たせない。
+  const departing = ref<'interested' | 'skipped' | null>(null);
+  let departureTimer: ReturnType<typeof setTimeout> | undefined;
   const readControllers = new Map<number, AbortController>();
   let loadController: AbortController | null = null;
   let disposed = false;
@@ -43,10 +46,10 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
   const processedCount = computed(() => session.value?.history.length ?? 0);
   const interestedIds = computed(() => session.value?.interestedIds ?? []);
   const complete = computed(() => session.value?.complete ?? false);
-  const canUndo = computed(() => !loading.value && !finishStarted.value && !storageError.value && processedCount.value > 0);
-  const canJudge = computed(() => !loading.value && !finishStarted.value && !storageError.value && !!currentArticle.value && currentArticle.value.state.lastOpenedAt === null);
-  const canNext = computed(() => !loading.value && !finishStarted.value && !storageError.value && !!currentArticle.value?.state.lastOpenedAt);
-  const canExit = computed(() => !loading.value && !finishing.value && !finished.value && !missingIds.value.length && !storageError.value);
+  const canUndo = computed(() => !loading.value && !departing.value && !finishStarted.value && !storageError.value && processedCount.value > 0);
+  const canJudge = computed(() => !loading.value && !departing.value && !finishStarted.value && !storageError.value && !!currentArticle.value && currentArticle.value.state.lastOpenedAt === null);
+  const canNext = computed(() => !loading.value && !departing.value && !finishStarted.value && !storageError.value && !!currentArticle.value?.state.lastOpenedAt);
+  const canExit = computed(() => !loading.value && !departing.value && !finishing.value && !finished.value && !missingIds.value.length && !storageError.value);
   const swipeOffset = computed(() => gesture.offset);
   const currentReadStatus = computed(() => currentArticle.value ? readStatus.get(currentArticle.value.articleId) : undefined);
 
@@ -74,7 +77,7 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
     return loadCandidates();
   }
   function decide(kind: SortingDecision): void {
-    if (disposed || loading.value || finishStarted.value || storageError.value || !session.value) return;
+    if (disposed || loading.value || departing.value || finishStarted.value || storageError.value || !session.value) return;
     const next = session.value.decide(kind);
     if (next === session.value) return;
     session.value = next; persistSelection();
@@ -104,7 +107,7 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
   }
   function cancelFinishTimer(): void { if (finishTimer) clearTimeout(finishTimer); finishTimer = undefined; }
   async function finishSorting(): Promise<void> {
-    if (disposed || finishing.value || finished.value || missingIds.value.length) return;
+    if (disposed || departing.value || finishing.value || finished.value || missingIds.value.length) return;
     cancelFinishTimer(); finishStarted.value = true; finishing.value = true; finishError.value = null; gesture.cancel();
     const controller = new AbortController(); finishController = controller;
     try {
@@ -147,7 +150,18 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
   }
   function finishSwipe(): void {
     const result = gesture.finish();
-    if (!disposed && canJudge.value && result) decide(result);
+    if (!disposed && canJudge.value && result) animateDecision(result);
+  }
+  function animateDecision(kind: 'interested' | 'skipped'): void {
+    if (disposed || !canJudge.value) return;
+    gesture.cancel();
+    departing.value = kind;
+    // CSSの退出を表示してからSessionを一度だけ進める。連続入力で二重登録しない。
+    departureTimer = setTimeout(() => {
+      departureTimer = undefined;
+      departing.value = null;
+      decide(kind);
+    }, 200);
   }
   function cancelSwipe(): void { gesture.cancel(); }
 
@@ -169,7 +183,7 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
   }
   async function openCurrentArticle(): Promise<void> {
     const article = currentArticle.value;
-    if (disposed || !article || !session.value) return;
+    if (disposed || departing.value || !article || !session.value) return;
     let openedAt: string;
     try {
       // タブ作成前にawaitを置かない。元記事への移動は既読保存の応答を待たない。
@@ -194,6 +208,8 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
     await finishRead(article.articleId, status.openedAt, controller, state.recordOpened(article.articleId, status.openedAt, controller.signal));
   }
   function dispose(): void {
+    if (departureTimer) clearTimeout(departureTimer);
+    departing.value = null;
     disposed = true; loadController?.abort(); finishController?.abort(); cancelFinishTimer();
     for (const controller of readControllers.values()) controller.abort();
     gesture.cancel();
@@ -202,7 +218,7 @@ export function useSortingViewModel(model: SortingModel, opening: ArticleOpening
     storageError: readonly(storageError), pendingWrites: readonly(pendingWrites), retryPending, prepareExit,
     loading: readonly(loading), error: readonly(error), openingError: readonly(openingError),
     currentArticle: readonly(currentArticle), currentReadStatus: readonly(currentReadStatus),
-    total, processedCount, interestedIds: readonly(interestedIds), complete, canUndo, canJudge, canNext, canExit, swipeOffset,
+    total, processedCount, interestedIds: readonly(interestedIds), complete, canUndo, canJudge, canNext, canExit, swipeOffset, departing: readonly(departing), animateDecision,
     initialize, retryLoading: loadCandidates, decide, undo, beginSwipe, moveSwipe, finishSwipe, cancelSwipe,
     openCurrentArticle, retryReadSave, dispose };
 }

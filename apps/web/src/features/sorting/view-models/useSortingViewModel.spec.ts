@@ -53,12 +53,31 @@ describe('仕分けVM', () => {
     await vm.retryLoading(); expect(vm.currentArticle.value?.articleId).toBe(3); expect(vm.error.value).toBeNull();
     await vm.retryLoading(); expect(getSortingCandidates).toHaveBeenCalledTimes(2);
   });
-  it('右左スワイプは閾値で一度だけ判断し、短い移動・縦スクロールは進めない', async () => {
-    const { vm, updateArticleState } = setupSorting(); await vm.initialize();
-    vm.beginSwipe(0,0); vm.moveSwipe(79,0); vm.finishSwipe(); expect(vm.processedCount.value).toBe(0);
-    vm.beginSwipe(0,0); vm.moveSwipe(5,80); vm.finishSwipe(); expect(vm.processedCount.value).toBe(0);
-    vm.beginSwipe(0,0); vm.moveSwipe(90,0); vm.finishSwipe(); vm.finishSwipe(); expect(vm.currentArticle.value?.articleId).toBe(2);
-    vm.beginSwipe(0,0); vm.moveSwipe(-90,0); vm.finishSwipe(); expect(vm.currentArticle.value?.articleId).toBe(1); expect(vm.interestedIds.value).toEqual([3]); expect(updateArticleState).not.toHaveBeenCalled();
+  it('左右スワイプは退出後に一度だけ判断し、その間の連打・開く・終了・戻すを受け付けない', async () => {
+    vi.useFakeTimers();
+    try {
+      const { vm, updateArticleState, open } = setupSorting(); await vm.initialize();
+      vm.beginSwipe(0,0); vm.moveSwipe(79,0); vm.finishSwipe(); expect(vm.processedCount.value).toBe(0);
+      vm.beginSwipe(0,0); vm.moveSwipe(5,80); vm.finishSwipe(); expect(vm.processedCount.value).toBe(0);
+      vm.beginSwipe(0,0); vm.moveSwipe(90,0); vm.finishSwipe();
+      expect(vm.departing.value).toBe('interested'); expect(vm.currentArticle.value?.articleId).toBe(3);
+      expect(vm.canJudge.value).toBe(false); expect(vm.canExit.value).toBe(false);
+      vm.finishSwipe(); vm.animateDecision('skipped'); vm.decide('skipped'); vm.undo();
+      await vm.openCurrentArticle(); await vm.finishSorting(); expect(open).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(vm.currentArticle.value?.articleId).toBe(2); expect(vm.processedCount.value).toBe(1);
+      vm.beginSwipe(0,0); vm.moveSwipe(-90,0); vm.finishSwipe();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(vm.currentArticle.value?.articleId).toBe(1); expect(vm.interestedIds.value).toEqual([3]);
+      expect(updateArticleState).not.toHaveBeenCalled(); vm.dispose();
+    } finally { vi.useRealTimers(); }
+  });
+  it('退出中に画面を閉じたら遅れて判断・保存しない', async () => {
+    vi.useFakeTimers();
+    try {
+      const { vm } = setupSorting(); await vm.initialize(); vm.animateDecision('interested'); vm.dispose();
+      await vi.advanceTimersByTimeAsync(500); expect(vm.processedCount.value).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
   it('元記事は同期的に開き、既読保存を待たず同じカードに残る。次へ・戻すでも既読は残る', async () => {
     const { vm, open, updateArticleState } = setupSorting(); await vm.initialize();

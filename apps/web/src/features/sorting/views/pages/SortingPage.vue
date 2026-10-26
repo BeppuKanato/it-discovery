@@ -18,7 +18,7 @@ const props = defineProps<{ sortingModel: SortingModel; openingModel: ArticleOpe
 const emit = defineEmits<{ exit: [] }>();
 const vm = useSortingViewModel(props.sortingModel, props.openingModel, props.stateModel, props.createPendingInterests(), props.batchSync);
 const { finishing, finished, finishError, missingIds, storageError, pendingWrites, loading, error, openingError, currentArticle, currentReadStatus, total, processedCount, interestedIds,
-  complete, canUndo, canJudge, canNext, canExit, swipeOffset } = vm;
+  complete, canUndo, canJudge, canNext, canExit, swipeOffset, departing } = vm;
 onMounted(() => { void vm.initialize(props.initialCandidates); vm.setOnline(navigator.onLine); window.addEventListener('beforeunload', beforeUnload); window.addEventListener('online', online); window.addEventListener('offline', offline); });
 onUnmounted(() => { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('online',online); window.removeEventListener('offline',offline); vm.dispose(); });
 watch(finished, value => { if (value) emit('exit'); });
@@ -59,18 +59,20 @@ function beforeUnload(event: BeforeUnloadEvent): void {
       <div class="progress" role="status"><span>{{ processedCount }} / {{ total }} 件を判断</span><span>気になる {{ interestedIds.length }} 件を仮選択</span></div>
       <ProgressBar :value="processedCount / total * 100" :show-value="false" aria-label="仕分けの進行" class="progress-bar" />
       <template v-if="currentArticle">
-        <SortingCard :article="currentArticle" :offset="swipeOffset" :swipe-enabled="canJudge" :move-pointer="vm.moveSwipe" :read-status="currentReadStatus?.phase"
-          @open="vm.openCurrentArticle" @start="vm.beginSwipe" @finish="vm.finishSwipe" @cancel="vm.cancelSwipe" />
+        <SortingCard :article="currentArticle" :offset="swipeOffset" :departing="departing" :swipe-enabled="canJudge" :move-pointer="vm.moveSwipe" :read-status="currentReadStatus?.phase"
+          @open="vm.openCurrentArticle" @start="vm.beginSwipe" @finish="vm.finishSwipe" @cancel="vm.cancelSwipe" @decide="vm.animateDecision" />
         <Message v-if="openingError" severity="error" :closable="false" class="status">{{ openingError }}</Message>
         <div v-if="currentReadStatus && currentReadStatus.phase !== 'saving'" class="status" role="status">
           <p>{{ currentReadStatus.message }}</p><Button type="button" label="既読を保存し直す" text size="small" @click="vm.retryReadSave" />
         </div>
         <p v-if="canNext" class="read-hint">開いた記事です。戻ってきたら「次へ」で進めます。</p>
-        <div class="actions">
+        <p v-if="!canNext" class="swipe-hint" aria-hidden="true"><span>← 見送り</span><span>気になる →</span></p>
+        <!-- 画面上の主操作はカード。スワイプできない支援技術・キーボードにも選択手段を残す。 -->
+        <div class="actions" :class="{ alternative: !canNext }">
           <Button v-if="canNext" type="button" label="次へ" class="next" @click="vm.decide('read')" />
           <template v-else>
-            <Button type="button" label="見送り" outlined :disabled="!canJudge" @click="vm.decide('skipped')" />
-            <Button type="button" label="気になる" :disabled="!canJudge" @click="vm.decide('interested')" />
+            <Button type="button" label="見送り" outlined :disabled="!canJudge" @click="vm.animateDecision('skipped')" />
+            <Button type="button" label="気になる" :disabled="!canJudge" @click="vm.animateDecision('interested')" />
           </template>
         </div>
       </template>
@@ -101,6 +103,9 @@ h1 { margin: 0; font-size: clamp(26px, 7vw, 32px); letter-spacing: -.04em; } h1 
 .progress { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 9px; color: var(--p-discovery-muted); font-size: 11px; }
 .progress-bar { height: 5px; margin-bottom: 22px; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 22px; } .actions .p-button { min-height: 48px; } .next { grid-column: 1 / -1; }
+.swipe-hint { display: flex; justify-content: space-between; padding: 0 12px; color: var(--p-discovery-muted); font-size: 13px; }
+.actions.alternative { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.actions.alternative:focus-within { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 .undo { text-align: center; margin-top: 8px; } .status { margin-top: 14px; }
 .empty-state, .complete-state { text-align: center; padding: 35px 4px; } h2 { font-size: 19px; line-height: 1.7; }
 .empty-state p, .complete-state p { color: var(--p-discovery-muted); font-size: 12px; line-height: 1.8; }
