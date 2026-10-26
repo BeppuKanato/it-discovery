@@ -111,4 +111,4 @@ Vueのクライアント用コンパイルとテスト用描画先で、実際�
 
 子リンクからbubblingするlostpointercaptureをキャンセルしないことと、実際に描画されたtransformが動くことをクライアントVueのテストで確認する。VMでは退出中の再入力・開く・終了・戻すの制限、200ms後の一回だけの判断、dispose後に判断しないことを確認する。
 
-`node scripts/check-swipe.mjs` はPlaywrightのChromiumへ実タッチ入力を送り、実際のApp→Page→VM→Model→描画で追従・右判断・左判断・短い操作・縦スクロール・戻すを確認する。APIだけ架空の3記事へ置き換え、本番には通信しない。CIのcheckでブラウザを導入して実行する。iPhoneのWebKit実機の確認は公開後に別途行う。
+`node scripts/check-swipe.mjs` はPlaywrightのChromiumへ実タッチ入力を送り、実際のApp→Page→VM→Model→描画で追従・右判断・左判断・短い操作・縦スクロール・戻すを確認する。APIだけ架空の3記事へ置き換え、本番には通信しない。CIのcheckではUbuntuランナーのChromeをCHROME_BINで指定して実行する。ローカルで環境変数を省略した場合はPlaywrightで導入したChromiumを使う。iPhoneのWebKit実機の確認は公開後に別途行う。

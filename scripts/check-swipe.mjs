@@ -18,7 +18,7 @@ try {
     if (attempt > 100 || server.exitCode !== null) throw new Error('Viteの起動失敗');
     await new Promise(resolve => setTimeout(resolve, 200));
   }
-  browser = await chromium.launch();
+  browser = await chromium.launch(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {});
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
