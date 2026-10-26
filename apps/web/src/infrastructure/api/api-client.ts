@@ -1,3 +1,4 @@
+import type { AuthSession } from '../auth/auth-session';
 import { InterestBatchError } from '../../features/sorting/models/interest-batch-sync.model';
 import type { PendingInterestBatch } from '../../features/sorting/models/pending-interest';
 import { isInterestBatchResponse } from './interest-batch-response';
@@ -12,8 +13,24 @@ import { ApiError } from './api-error';
 // 通信設定・JSON検証だけを担当する。保存キュー・操作ID・自動再送は持たない。
 export class ApiClient {
   private readonly http: AxiosInstance;
-  constructor(baseURL: string) {
+  constructor(baseURL: string, session?: AuthSession) {
     this.http = axios.create({ baseURL, timeout: 10_000 });
+    if (session) {
+      // 認証エラーでは更新を自動再送しない。VMをログインへ戻し、仕分け記録は保存したままにする。
+      this.http.interceptors.request.use(config => {
+        const token = session.token();
+        if (!token) throw new ApiError(401);
+        config.headers.set('Authorization', `Bearer ${token}`);
+        return config;
+      });
+      this.http.interceptors.response.use(response => response, (error: unknown) => {
+        if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {
+          const header = error.config?.headers.get('Authorization');
+          if (typeof header === 'string' && header.startsWith('Bearer ')) session.reject(header.slice(7), error.response!.status);
+        }
+        return Promise.reject(error);
+      });
+    }
   }
 
   async getArticlePage(request: ArticlePageRequest, signal?: AbortSignal): Promise<ArticlePageResponse> {

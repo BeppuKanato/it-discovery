@@ -25,7 +25,7 @@ Modelは取得した記事配列を保持せず、結果を返す。画面状態
 
 ```mermaid
 flowchart TB
-  App[App] --> Page[ArticleListPage]
+  App[AuthenticatedApplication] --> Page[ArticleListPage]
   Page --> VM[一覧VM]
   VM --> List[一覧Model]
   VM --> State[記事状態Model]
@@ -39,7 +39,7 @@ flowchart TB
   Factory --> State
 ```
 
-API契約はTypeScriptのinterfaceで、実体はApiClient。組み立て関数がconstructorへ実体を渡す。PageへはAppからpropsでModelを渡す。provide/injectのキーやVMの共有は導入していない。PageでVMを生成するので、将来ページを切り替えても画面状態はそのPageの寿命に従う。
+API契約はTypeScriptのinterfaceで、実体はApiClient。組み立て関数がconstructorへ実体を渡す。Pageへは認証後のAuthenticatedApplicationからpropsでModelを渡す。provide/injectのキーやVMの共有は導入していない。PageでVMを生成するので、将来ページを切り替えても画面状態はそのPageの寿命に従う。
 
 ## 状態の持ち主
 
@@ -80,7 +80,7 @@ sequenceDiagram
   Note over P,VM: Vueが変更を検知して一覧を描画
 ```
 
-AppはModelをPageへ渡すだけ。端末通信の解消を初回取得の条件にしない。フィルター変更ではVMが配列・カーソルをリセットし、その条件で新規取得する。追加取得も現在の条件とカーソルを使う。画面を閉じるとPageがVM.disposeを呼び、通信・ジェスチャーを終了する。
+AuthenticatedApplicationはModelをPageへ渡すだけ。端末通信の解消を初回取得の条件にしない。フィルター変更ではVMが配列・カーソルをリセットし、その条件で新規取得する。追加取得も現在の条件とカーソルを使う。画面を閉じるとPageがVM.disposeを呼び、通信・ジェスチャーを終了する。
 
 ## ピン操作の実行順序
 
@@ -132,6 +132,10 @@ PageはVMとの接続、Templateはslotの配置、Organismは画面領域、Mol
 
 ## 仕分け画面
 
-一覧の開始イベントをAppが受け、SortingPageへ切り替える。Appは画面を選ぶだけで、仕分けの取得・判断は行わない。[仕分けの責任分担・状態・実行順序](sorting-ui.md)を参照。判断はSortingSessionという値をVMがrefに一つ持ち、変更後の値へ置き換える。取得・履歴・ジェスチャー・既読を分け、一覧のVMや記事配列を共有しない。
+一覧の開始イベントをAuthenticatedApplicationが受け、SortingPageへ切り替える。AuthenticatedApplicationは画面を選ぶだけで、仕分けの取得・判断は行わない。[仕分けの責任分担・状態・実行順序](sorting-ui.md)を参照。判断はSortingSessionという値をVMがrefに一つ持ち、変更後の値へ置き換える。取得・履歴・ジェスチャー・既読を分け、一覧のVMや記事配列を共有しない。
 
 起動全体の未送信復旧はApplicationStartupGate→起動VM→ApplicationStartupModelが担当する。[構成と手順](sorting-persistence.md)。通常Pageは復旧後に作り、一覧のinitializeは引き続き一覧Pageが呼ぶ。これは一覧のピン・気になる・既読の永続再送ではない。
+
+## Google認証の入口
+
+App→AuthenticationGate→AuthenticatedApplication→ApplicationStartupGate→通常Pageの順で組み立てる。認証VMが確認済みsubjectを持つ間だけアプリ配下を作る。Modelの組み立ては認証後に行い、期限切れでは配下を終了する。認証前に仕分けを再送しない。Bearerの保持は描画に使わないAuthSessionの通常変数で、記事VMには渡さない。[認証の依存関係・状態・実行順序・設定](authentication.md)を参照。
