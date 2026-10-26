@@ -139,3 +139,7 @@ PageはVMとの接続、Templateはslotの配置、Organismは画面領域、Mol
 ## Google認証の入口
 
 App→AuthenticationGate→AuthenticatedApplication→ApplicationStartupGate→通常Pageの順で組み立てる。認証VMが確認済みsubjectを持つ間だけアプリ配下を作る。Modelの組み立ては認証後に行い、期限切れでは配下を終了する。認証前に仕分けを再送しない。Bearerの保持は描画に使わないAuthSessionの通常変数で、記事VMには渡さない。[認証の依存関係・状態・実行順序・設定](authentication.md)を参照。
+
+## ホーム画面からの起動
+
+ホーム画面用の設定はindex.htmlとpublicのmanifest・アイコンが担当する。VueのVM・Modelにインストール用の状態を増やさない。起動後は通常ブラウザと同じ認証の入口を通る。安全領域の余白は共通CSS、固定ツールバーの位置は一覧Templateが担当する。[PWAの配信構成・追加手順・実機確認](pwa.md)を参照。
