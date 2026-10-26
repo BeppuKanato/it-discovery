@@ -143,3 +143,7 @@ App→AuthenticationGate→AuthenticatedApplication→ApplicationStartupGate→�
 ## ホーム画面からの起動
 
 ホーム画面用の設定はindex.htmlとpublicのmanifest・アイコンが担当する。VueのVM・Modelにインストール用の状態を増やさない。起動後は通常ブラウザと同じ認証の入口を通る。安全領域の余白は共通CSS、固定ツールバーの位置は一覧Templateが担当する。[PWAの配信構成・追加手順・実機確認](pwa.md)を参照。
+
+## 仕分けのタッチ入力と退出
+
+SortingCardは座標・Pointer capture・クリック抑止・ドラッグ中の描画だけを持つ。仕分けVMはSwipeGestureへ判定を依頼し、確定後のdepartingを200msだけ保持してからSessionを進める。退出中の二重入力を止め、Pageを閉じた場合は予約を解除する。保存は既存のPendingInterestModelへ依頼する。[スワイプの詳細と回帰確認](sorting-ui.md#スワイプ不具合の回帰確認53)を参照。
