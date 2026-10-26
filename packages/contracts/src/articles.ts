@@ -1,10 +1,18 @@
 export type ArticleListKind = 'all' | 'interested';
 
+// フィルターの表示情報だけを公開する。収集先URLや実行設定は含めない。
+export interface ArticleSource {
+  sourceId: string;
+  siteName: string;
+  iconUrl: string | null;
+}
+
 // 一覧取得に指定できる値を表す。
 export interface ArticlePageRequest {
   kind?: ArticleListKind;
   limit?: number;
   cursor?: string;
+  sourceId?: string;
 }
 
 // 一覧に表示する記事・出典・状態のJSONを表す。

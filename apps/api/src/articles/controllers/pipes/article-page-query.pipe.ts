@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, type PipeTransform } from '@nestjs/common';
 import { ARTICLE_PAGE_SIZE, type ArticlePageQuery } from '../../models/article-page';
 import { decodeArticleCursor } from '../formatters/article-cursor.formatter';
+import { isArticleSourceId } from '../../validators/article-source';
 
 @Injectable()
 export class ArticlePageQueryPipe implements PipeTransform<unknown, ArticlePageQuery> {
@@ -10,8 +11,8 @@ export class ArticlePageQueryPipe implements PipeTransform<unknown, ArticlePageQ
       throw new BadRequestException('一覧のパラメータが不正です。');
     }
     const query = value as Record<string, unknown>;
-    if (Object.keys(query).some((key) => !['kind', 'limit', 'cursor'].includes(key))) {
-      throw new BadRequestException('kind・limit・cursor以外のパラメータは指定できません。');
+    if (Object.keys(query).some((key) => !['kind', 'limit', 'cursor', 'sourceId'].includes(key))) {
+      throw new BadRequestException('kind・limit・cursor・sourceId以外のパラメータは指定できません。');
     }
     const kind = query['kind'] ?? 'all';
     if (kind !== 'all' && kind !== 'interested') {
@@ -28,6 +29,9 @@ export class ArticlePageQueryPipe implements PipeTransform<unknown, ArticlePageQ
     if (token !== undefined && typeof token !== 'string') {
       throw new BadRequestException('cursorは一つだけ指定してください。');
     }
-    return { kind, limit, before: token === undefined ? undefined : decodeArticleCursor(token, kind) };
+    const sourceId = query['sourceId'];
+    if (!isArticleSourceId(sourceId)) throw new BadRequestException('sourceIdは一つの取得先IDを指定してください。');
+    return { kind, limit, ...(sourceId !== undefined ? { sourceId } : {}),
+      before: token === undefined ? undefined : decodeArticleCursor(token, kind, sourceId) };
   }
 }

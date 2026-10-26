@@ -93,6 +93,7 @@ export class SqliteArticleRepository extends ArticleRepository {
     const before = query.before;
     return this.findListEntries(and(
       query.kind === 'interested' ? eq(articleStates.interested, true) : undefined,
+      query.sourceId !== undefined ? eq(articles.sourceId, query.sourceId) : undefined,
       before ? or(
         lt(articles.fetchedAt, before.fetchedAt),
         and(eq(articles.fetchedAt, before.fetchedAt), lt(articles.articleId, before.articleId)),
