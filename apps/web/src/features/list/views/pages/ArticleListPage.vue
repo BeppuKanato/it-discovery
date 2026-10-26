@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted } from 'vue';
 import Message from 'primevue/message';
 import Button from 'primevue/button';
-import type { ArticleListKind } from '@it-discovery/contracts';
+import type { ArticleListKind, ArticleListItem } from '@it-discovery/contracts';
 import { useArticleListViewModel } from '../../view-models/useArticleListViewModel';
 import type { ArticleListModel } from '../../models/article-list.model';
 import type { ArticleOpeningModel } from '../../../articles/models/article-opening.model';
@@ -14,7 +14,7 @@ import ArticleListContent from '../organisms/ArticleListContent.vue';
 
 // Pageは表示開始・終了とブラウザ入力をVMへ伝える。初回取得はAppでなくここから始める。
 const props = defineProps<{ listModel: ArticleListModel; stateModel: ArticleStateModel; openingModel: ArticleOpeningModel }>();
-const emit = defineEmits<{ startSorting: [] }>();
+const emit = defineEmits<{ articleContext: [article: ArticleListItem] }>();
 const vm = useArticleListViewModel(props.listModel, props.stateModel, props.openingModel);
 const { articles, selectedKind, selectedSourceId, sources, sourcesLoading, sourcesError, hasMore, listLoading, listError, notice, savingByArticle, readStatus, openingErrors, saveErrors,
   refreshArticles, loadMoreArticles, retryArticleLoad, togglePin, toggleInterest, retryStateCheck, openArticle, retryReadSave,
@@ -22,6 +22,11 @@ const { articles, selectedKind, selectedSourceId, sources, sourcesLoading, sourc
 onMounted(() => { void vm.initialize(); });
 onUnmounted(() => { vm.dispose(); });
 
+function openForReading(articleId: number): void {
+  const article = articles.value.find(article => article.articleId === articleId);
+  if (article) emit('articleContext', article);
+  void openArticle(articleId);
+}
 function selectKind(value: ArticleListKind): void {
   if (value !== selectedKind.value) window.scrollTo({ top: 0 });
   void vm.changeListKind(value);
@@ -54,12 +59,12 @@ function touchMove(event: TouchEvent): void {
     </template>
     <template #intro>
       <p class="eyebrow">見つける、選ぶ、読む。</p>
-      <h1>{{ selectedKind === 'all' ? '集まった情報' : '気になる情報' }}<span class="heading-dot">。</span></h1>
+      <h1>{{ selectedKind === 'all' ? '今日の発見' : '気になる情報' }}<span class="heading-dot">。</span></h1>
       <p class="intro-description">{{ selectedKind === 'all' ? 'ひとつの出会いが、次のアイデアに。' : 'あとで読みたい発見を、ひとつの場所に。' }}</p>
     </template>
     <template #toolbar>
       <ArticleListToolbar :source-id="selectedSourceId" :sources="sources" :sources-loading="sourcesLoading" @source="selectSource" :kind="selectedKind" :count="articles.length" :refreshing="listLoading === 'refresh'"
-        :disabled="false" :busy="listLoading === 'initial' || listLoading === 'refresh'" @start-sorting="emit('startSorting')" @select="selectKind" @refresh="refreshArticles" />
+        :disabled="false" :busy="listLoading === 'initial' || listLoading === 'refresh'" @select="selectKind" @refresh="refreshArticles" />
     </template>
     <template #status>
       <Message v-if="sourcesError" severity="warn" :closable="false">{{ sourcesError }}
@@ -74,7 +79,7 @@ function touchMove(event: TouchEvent): void {
     </div>
     <ArticleListContent :articles="articles" :kind="selectedKind" :initial-loading="listLoading === 'initial'"
       :loading="listLoading !== null" :has-more="hasMore" :error="listError?.message ?? null" :opening-errors="openingErrors" :read-status="readStatus" :saving-by-article="savingByArticle" :save-errors="saveErrors"
-      @open="openArticle" @retry-read="retryReadSave" @pin="togglePin" @interest="toggleInterest" @more="loadMoreArticles" @retry="retryArticleLoad" @check-state="retryStateCheck" />
+      @open="openForReading" @retry-read="retryReadSave" @pin="togglePin" @interest="toggleInterest" @more="loadMoreArticles" @retry="retryArticleLoad" @check-state="retryStateCheck" />
     <template #footer><p class="page-footnote">小さな発見を、毎日に。</p></template>
   </ArticleListLayout>
 </template>
@@ -82,10 +87,10 @@ function touchMove(event: TouchEvent): void {
 <style scoped>
 .brand { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 750; letter-spacing: -.02em; }
 .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; color: var(--p-discovery-paper); background: var(--p-primary-color); font-family: Georgia, serif; font-size: 22px; }
-.eyebrow { margin: 0 0 10px; color: var(--p-primary-color); font-size: 11px; letter-spacing: .08em; }
+.eyebrow { margin: 0 0 6px; color: var(--p-primary-color); font-size: 11px; letter-spacing: .08em; }
 h1 { margin: 0; font-size: clamp(27px, 7.5vw, 33px); line-height: 1.4; letter-spacing: -.045em; }
 .heading-dot { color: var(--p-primary-color); }
-.intro-description { margin: 10px 0 0; color: var(--p-discovery-muted); font-size: 12px; line-height: 1.8; }
+.intro-description { margin: 6px 0 0; color: var(--p-discovery-muted); font-size: 12px; line-height: 1.8; }
 .pull-status { display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--p-primary-color); font-size: 12px; }
 .page-footnote { margin: 0; color: var(--p-discovery-muted); font-size: 11px; text-align: center; letter-spacing: .05em; }
 </style>

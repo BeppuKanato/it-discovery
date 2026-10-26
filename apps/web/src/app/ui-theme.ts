@@ -5,16 +5,17 @@ import Aura from '@primeuix/themes/aura';
 export const uiTheme = definePreset(Aura, {
   extend: {
     discovery: {
-      background: '#f4f7f3', ink: '#243e32', muted: '#657569', line: '#dfe7df',
-      frameStart: '#79c9ed', frameEnd: '#b3a7ee', paper: '#ffffff',
+      background: '#f5f9ff', ink: '#243d5a', muted: '#71859b', line: '#dfebf6',
+      soft: '#eff7ff', partnerInk: '#254e76', partnerMuted: '#6085ac',
+      frameStart: '#cfebff', frameEnd: '#e6efff', paper: '#ffffff',
     },
   },
   semantic: {
     primary: {
-      50: '{green.50}', 100: '{green.100}', 200: '{green.200}',
-      300: '{green.300}', 400: '{green.400}', 500: '#335d45',
-      600: '#284e38', 700: '{green.700}', 800: '{green.800}',
-      900: '{green.900}', 950: '{green.950}',
+      50: '{blue.50}', 100: '{blue.100}', 200: '{blue.200}',
+      300: '{blue.300}', 400: '{blue.400}', 500: '#3188df',
+      600: '#2474c5', 700: '{blue.700}', 800: '{blue.800}',
+      900: '{blue.900}', 950: '{blue.950}',
     },
   },
   components: {

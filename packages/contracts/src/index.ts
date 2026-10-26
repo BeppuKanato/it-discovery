@@ -11,3 +11,5 @@ export interface HealthResponse {
 }
 
 export type { SortingCandidatesResponse, InterestBatchRequest, InterestBatchResponse } from './sorting';
+
+export type { CompanionMessage, CompanionChatRequest, CompanionChatResponse, DiscoveryNote, DiscoveryNoteRequest } from './companion';

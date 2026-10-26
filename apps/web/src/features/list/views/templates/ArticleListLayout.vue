@@ -12,8 +12,8 @@
 </template>
 
 <style scoped>
-.list-page { max-width: 500px; min-height: 100svh; margin: auto; padding: 24px 20px 40px; }
-.intro { margin: 32px 0 25px; }
+.list-page { max-width: 500px; min-height: 100svh; margin: auto; padding: 20px 20px 30px; }
+.intro { margin: 20px 0 15px; }
 /* スクロール中も固定ツールバーがノッチ領域へ入り込まないようにする。 */
 .toolbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; padding-top: 10px; background: var(--p-discovery-background); }
 footer { margin-top: 26px; }

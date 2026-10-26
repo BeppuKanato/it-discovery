@@ -1,7 +1,7 @@
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
-  color: var(--p-discovery-ink, #243e32);
-  background: var(--p-discovery-background, #f4f7f3);
+  color: var(--p-discovery-ink, #243d5a);
+  background: var(--p-discovery-background, #f5f9ff);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -17,3 +17,7 @@ body {
 html, body { overscroll-behavior-y: contain; }
 button, input { font: inherit; }
 @media (prefers-reduced-motion: reduce) { .p-skeleton::after { animation: none; } }
+
+/* ダイアログを含む共通の安全領域。長い文章でも横方向へはみ出さない。 */
+.p-dialog-content { min-width: 0; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }

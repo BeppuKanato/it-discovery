@@ -44,7 +44,8 @@ describe('SQLiteの記事と設定の永続保存', () => {
     repository.updateState(saved.article.articleId, { interested: true, pinned: true });
     configs.saveSource({ ...defaultSources[0]!, enabled: false });
     // 移行前のDBを再現する。この一時DBだけで新しい移行の適用記録を外す。
-    database.client.prepare('DELETE FROM __drizzle_migrations WHERE created_at = ?').run(1793000000000);
+    database.client.prepare('DELETE FROM __drizzle_migrations WHERE created_at >= ?').run(1793000000000);
+    database.client.exec('DROP TABLE companion_usage; DROP TABLE discovery_notes;');
     database.onApplicationShutdown();
     database = new DatabaseService();
     configs = new SettingsService(new SqliteSettingsRepository(database));
