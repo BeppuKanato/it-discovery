@@ -7,7 +7,13 @@
   -webkit-font-smoothing: antialiased;
 }
 * { box-sizing: border-box; }
-body { margin: 0; }
+/* viewport-fit=coverで広げた領域のうち、ノッチ・ホームバー・横向きの端を避ける。
+   通常ブラウザでは安全領域が0になり、既存のPageの余白をそのまま使う。 */
+body {
+  margin: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
 html, body { overscroll-behavior-y: contain; }
 button, input { font: inherit; }
 @media (prefers-reduced-motion: reduce) { .p-skeleton::after { animation: none; } }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>IT Discovery</title>
+  <!-- 発見を表すコンパス。中央の図形はmaskableアイコンの安全領域内に収める。 -->
+  <path fill="#243e32" d="M0 0h512v512H0z"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#f4f7f3" stroke-width="16"/>
+  <path fill="#b6d683" d="m326 186-39 101-62-62z"/>
+  <path fill="#f4f7f3" d="m186 326 39-101 62 62z"/>
+  <circle cx="256" cy="256" r="13" fill="#243e32"/>
+</svg>
