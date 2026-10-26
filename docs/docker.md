@@ -101,3 +101,7 @@ DBは `/mnt/disks/it-discovery-data/database/it-discovery.db` に保存される
 ## 再作成の検証
 
 GitHub Actionsのdockerジョブで本番イメージを構築し、`scripts/check-docker-persistence.sh`を実行する。CI専用の一時volumeに記事・気になる・ピン・既読を保存し、正常停止（exit 0）→コンテナ削除→同じvolumeで起動→HTTP一覧の値を確認する。終了時にその一時volumeだけを削除する。既存のComposeや本番volumeへは接続しない。
+
+## Google認証付きの公開
+
+配布用コンテナは本番認証を必須にし、設定不足でも記事APIを許可しない。compose.ymlのGOOGLE_CLIENT_ID・GOOGLE_ALLOWED_SUBS・CORS_ORIGINSをVMの.envから渡す。[初回の本人登録とCaddyの段階的な公開手順](authentication.md#本番への段階的な反映)に従う。古い無認証イメージへ戻す前にCaddyの公開範囲をhealthだけへ戻す。

@@ -4,13 +4,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # 公開前のローカル確認用。外部へ直接公開せず、本人用認証は#24で決める。
+    # 公開前のローカル確認用。外部へ直接公開せず、外部のHTTPS受付はCaddyで行う。
     ports:
       - "127.0.0.1:${API_PORT:-3000}:3000"
     environment:
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_PATH: /data/it-discovery.db
+      AUTH_MODE: google
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_ALLOWED_SUBS: ${GOOGLE_ALLOWED_SUBS:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:

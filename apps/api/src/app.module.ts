@@ -1,3 +1,5 @@
+import authConfig from './auth/models/auth-config';
+import { AuthModule } from './auth/auth.module';
 import { CollectionModule } from './collection/collection.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -7,7 +9,7 @@ import { ArticlesModule } from './articles/articles.module';
 import { SettingsModule } from './settings/settings.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, load: [serverConfig] }), ArticlesModule, SettingsModule, CollectionModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true, load: [serverConfig, authConfig] }), AuthModule, ArticlesModule, SettingsModule, CollectionModule],
   controllers: [HealthController],
 })
 export class AppModule {}
