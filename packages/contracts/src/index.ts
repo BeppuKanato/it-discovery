@@ -1,4 +1,4 @@
-export type { ArticleListKind, ArticlePageRequest, ArticleListItem, ArticlePageResponse } from './articles';
+export type { ArticleSource, ArticleListKind, ArticlePageRequest, ArticleListItem, ArticlePageResponse } from './articles';
 export type {
   ArticleStateChange, ArticleStateUpdateRequest, ArticleStateValue,
   ArticleStateResponse,

@@ -12,29 +12,33 @@ const server = spawn(process.execPath, [fileURLToPath(new URL('../node_modules/v
   stdio: 'inherit',
 });
 let browser;
+let diagnosticsPage;
 try {
   for (let attempt = 0; ; attempt++) {
     try { if ((await fetch(origin)).ok) break; } catch {}
     if (attempt > 100 || server.exitCode !== null) throw new Error('Viteの起動失敗');
     await new Promise(resolve => setTimeout(resolve, 200));
   }
-  browser = await chromium.launch();
+  browser = await chromium.launch(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {});
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  const page = await context.newPage();
+  const page = await context.newPage(); diagnosticsPage = page;
   page.setDefaultTimeout(15000);
   const articles = [3, 2, 1].map(articleId => ({
     articleId, url: `https://example.com/${articleId}`, title: `スワイプ検証記事${articleId}`,
     description: 'カード上から左右へ指を動かして仕分けます。', author: null,
     fetchedAt: '2026-10-01T00:00:00.000Z', publishedAt: null, sourceUpdatedAt: null,
-    source: { sourceId: 'zenn', siteName: 'Zenn', iconUrl: null },
+    source: { sourceId: articleId === 2 ? 'other' : 'zenn', siteName: articleId === 2 ? 'Other' : 'Zenn', iconUrl: null },
     state: { interested: false, pinned: false, lastOpenedAt: null },
   }));
   let unexpectedWrites = 0;
   await page.route(`${origin}/api/**`, async route => {
     if (route.request().method() !== 'GET') unexpectedWrites++;
-    const path = new URL(route.request().url()).pathname;
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+    const sourceId = url.searchParams.get('sourceId');
     const body = path === '/api/sorting/candidates' ? { articles }
-      : path === '/api/articles' ? { articles, hasMore: false, nextCursor: null }
+      : path === '/api/sources' ? [{ sourceId: 'zenn', siteName: 'Zenn', iconUrl: null }, { sourceId: 'other', siteName: 'Other', iconUrl: null }]
+      : path === '/api/articles' ? { articles: articles.filter(item => !sourceId || item.source.sourceId === sourceId), hasMore: false, nextCursor: null }
       : { status: 'ok', message: 'test' };
     await route.fulfill({ json: body });
   });
@@ -78,8 +82,27 @@ try {
   await page.getByRole('button', { name: 'ひとつ戻す' }).click();
   await page.getByText('1 / 3 件を判断', { exact: true }).waitFor();
   assert.equal(unexpectedWrites, 0, '判断中はサーバー更新を待たない');
+  // 仮選択を戻して全件見送りで終了し、通常の一覧へ進む。
+  await page.getByRole('button', { name: 'ひとつ戻す' }).click();
+  for (let index = 1; index <= 3; index++) {
+    await swipe(-120, 0);
+    if (index < 3) await page.getByText(`${index} / 3 件を判断`, { exact: true }).waitFor();
+  }
+  await page.getByText('3件の仕分けが終わりました', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '仕分けを終了する' }).first().click();
+  const filter = page.getByRole('combobox', { name: '取得先', exact: true });
+  await filter.waitFor();
+  await filter.click(); await page.getByRole('option', { name: 'Other', exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.article-shell').length === 1);
+  assert.ok(await page.getByRole('link', { name: 'スワイプ検証記事2（別タブで開く）' }).isVisible());
+  await filter.click(); await page.getByRole('option', { name: 'Zenn', exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.article-shell').length === 2);
+  assert.equal(await page.getByRole('link', { name: 'スワイプ検証記事2（別タブで開く）' }).count(), 0);
   await context.close();
-  console.log('実タッチ入力: 追従・右登録・左見送り・短距離・縦スクロール・戻す OK');
+  console.log('実タッチ入力: 追従・右登録・左見送り・短距離・縦スクロール・戻す・取得先フィルター OK');
+} catch (error) {
+  if (diagnosticsPage) console.error('検証画面:', await diagnosticsPage.locator('body').innerText().catch(() => '取得不可'));
+  throw error;
 } finally {
   await browser?.close();
   server.kill('SIGTERM');

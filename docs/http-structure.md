@@ -98,3 +98,7 @@ flowchart TD
 ## 確認結果
 
 Issue #9追加後に全体の型チェック、API193件・web20件の計213件のテスト、ビルドを確認した。ファイルの移動とimport先の変更、登録方針の説明が中心で、APIの振る舞いを追加・変更するテストは必要ないため新設していない。
+
+## 取得先の表示情報（#55）
+
+Settings機能のcontrollers/sources.controller.tsはGET /api/sourcesで表示情報だけを返す。SettingsServiceから設定を読み、HTTPへの変換でendpoint等を除く。main.tsのグローバル認証を適用し、匿名許可の例外は増やさない。一覧のsourceIdは既存のArticlePageQueryPipeで検証・変換する。[詳細](source-filter.md)。

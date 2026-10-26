@@ -14,7 +14,7 @@ export class ArticlesController {
   @Header('Cache-Control', 'no-store')
   getPage(@Query(ArticlePageQueryPipe) query: ArticlePageQuery): ArticlePageResponse {
     try {
-      return toArticlePageResponse(this.service.getPage(query), query.kind);
+      return toArticlePageResponse(this.service.getPage(query), query.kind, query.sourceId);
     } catch (error) {
       if (error instanceof InvalidArticlePageQueryError) throw new BadRequestException(error.message);
       throw error;

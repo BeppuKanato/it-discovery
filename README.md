@@ -47,6 +47,7 @@ PRの作成・更新とmainの更新でも、依存の新規導入から同じ�
 ## 設計資料
 
 - [ホーム画面から起動するPWA](docs/pwa.md)：iPhoneへの追加・更新、アイコン、安全領域、オンライン利用の範囲。
+- [一覧の取得先フィルター](docs/source-filter.md)：取得先ごとの検索、気になるとの組み合わせ、ページング、API更新。
 - [結合確認と残る確認](docs/integration-status.md)：HTTP・端末保存・DB再起動の再現コマンドと公開前の未確認事項。
 - [公開構成の提案（未決定）](docs/hosting-policy.md)：配信・本人制限・費用・バックアップの具体案。
 - [Dockerの起動・更新・停止](docs/docker.md)：永続volumeと再作成確認。

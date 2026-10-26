@@ -33,8 +33,11 @@ jobs:
       - run: npm run build
       - run: npm run test:integration
       # Pointer captureはNodeのイベント模擬だけでは検証できないため、実ブラウザへタッチを送る。
-      - run: npx playwright install --with-deps chromium
-      - run: node scripts/check-swipe.mjs
+      # GitHubのUbuntuランナーに含まれるChromeを使い、追加ダウンロードで停止しないようにする。
+      - name: Check touch gestures and source filter in Chrome
+        run: |
+          swipe_chrome_bin="$(command -v google-chrome)"
+          CHROME_BIN="$swipe_chrome_bin" node scripts/check-swipe.mjs
 
   docker:
     runs-on: ubuntu-latest

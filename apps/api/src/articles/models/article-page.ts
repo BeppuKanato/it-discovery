@@ -13,6 +13,7 @@ export interface ArticlePageQuery {
   kind: ArticleListKind;
   limit: number;
   before?: ArticlePagePosition;
+  sourceId?: string;
 }
 
 export interface ArticleListEntry {

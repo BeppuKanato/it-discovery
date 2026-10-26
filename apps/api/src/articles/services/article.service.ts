@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ArticleContent, ArticleInput } from '../models/article';
 import { articleIdentity } from '../models/article-identity';
+import { isArticleSourceId } from '../validators/article-source';
 import type { ArticleState } from '../models/article-state';
 import { ArticleRepository, type StoredArticle } from '../repositories/article.repository';
 import {
@@ -40,6 +41,9 @@ export class ArticleService {
 
   // 一覧の条件を検証し、一件先を確認して続き位置を返す。
   getPage(query: ArticlePageQuery): ArticlePage {
+    if (!isArticleSourceId(query.sourceId)) {
+      throw new InvalidArticlePageQueryError('sourceIdは1〜100文字の取得先IDを指定してください。');
+    }
     if (query.kind !== 'all' && query.kind !== 'interested') {
       throw new InvalidArticlePageQueryError('kindはallまたはinterestedを指定してください。');
     }

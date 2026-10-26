@@ -44,7 +44,7 @@ describe('Google認証と全APIの利用制限', () => {
   afterAll(async () => { await app?.close(); jest.restoreAllMocks(); process.env = oldEnv; if (directory) rmSync(directory, { recursive: true, force: true }); });
   it('healthだけ未認証で利用でき、GET・PUT・仕分けを閉じる', async () => {
     expect((await request('/health')).status).toBe(200);
-    for (const path of ['/articles', '/sorting/candidates', '/auth/identity', `/articles/${articleId}/state`]) {
+    for (const path of ['/sources', '/articles', '/sorting/candidates', '/auth/identity', `/articles/${articleId}/state`]) {
       const response = await request(path); expect(response.status).toBe(401); expect(response.headers.get('cache-control')).toBe('no-store');
     }
     expect((await request(`/articles/${articleId}/state`, undefined, 'PUT', { change: { kind: 'pinned', value: true } })).status).toBe(401);
@@ -56,12 +56,14 @@ describe('Google認証と全APIの利用制限', () => {
     const credential = token({ sub: '987654321' });
     const identity = await request('/auth/identity', credential);
     expect(identity.status).toBe(200); expect(await identity.json()).toMatchObject({ subject: '987654321', allowed: false });
+    expect((await request('/sources', credential)).status).toBe(403);
     expect((await request('/articles', credential)).status).toBe(403);
     expect((await request(`/articles/${articleId}/state`, credential, 'PUT', { change: { kind: 'pinned', value: true } })).status).toBe(403);
     expect(app.get(ArticleService).getPage({ kind: 'all', limit: 20 }).articles[0]?.state.pinned).toBe(false);
   });
   it('登録済み本人だけ記事の取得・変更ができる', async () => {
     const credential = token();
+    expect((await request('/sources', credential)).status).toBe(200);
     expect((await request('/articles', credential)).status).toBe(200);
     expect((await request(`/articles/${articleId}/state`, credential, 'PUT', { change: { kind: 'pinned', value: true } })).status).toBe(200);
     expect(await (await request('/auth/identity', credential)).json()).toMatchObject({ subject: '123456789', allowed: true });

@@ -47,6 +47,8 @@ API契約はTypeScriptのinterfaceで、実体はApiClient。組み立て関数�
 |---|---|---|
 | articles | VMのshallowRef | 表示する記事配列。記事状態の変更も配列・記事を置き換えて反映 |
 | selectedKind | VMのref | 全記事・気になるの選択表示 |
+| selectedSourceId | VMのref | 全取得先または1取得先の選択表示。変更時に先頭から取り直す |
+| sources・sourcesLoading・sourcesError | VMのshallowRef・ref | 現在の20件と独立した選択肢と、その取得中・再試行案内 |
 | listLoading・listError | VMのref | 初回のスケルトン、末尾の取得表示、再試行案内 |
 | hasMore | VMのref | 末尾の取得手段・終端の表示 |
 | savingByArticle | VMのreactive Map | 記事ごとの部分着色・操作制限。別の記事は操作可能 |
@@ -147,3 +149,5 @@ App→AuthenticationGate→AuthenticatedApplication→ApplicationStartupGate→�
 ## 仕分けのタッチ入力と退出
 
 SortingCardは座標・Pointer capture・クリック抑止・ドラッグ中の描画だけを持つ。仕分けVMはSwipeGestureへ判定を依頼し、確定後のdepartingを200msだけ保持してからSessionを進める。退出中の二重入力を止め、Pageを閉じた場合は予約を解除する。保存は既存のPendingInterestModelへ依頼する。[スワイプの詳細と回帰確認](sorting-ui.md#スワイプ不具合の回帰確認53)を参照。
+
+一覧の取得先条件は一覧VM→Model→ApiClientへ渡し、APIのSQL段階で絞る。取得先の選択肢だけは別GETで読み込む。[取得先フィルターの責任・状態・実行順序](source-filter.md)を参照。
