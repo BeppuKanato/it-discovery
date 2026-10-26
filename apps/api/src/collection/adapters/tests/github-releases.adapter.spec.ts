@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { defaultSources } from '../../../settings/models/default-sources';
+import type { SourceConfig } from '../../../settings/models/source-config';
 import { GitHubReleasesAdapter } from '../github-releases.adapter';
 import { SourceHttp } from '../source-http';
-const source = { ...defaultSources[4]!, maxPerRun: 2 };
+const source: SourceConfig = { sourceId: 'github_test', siteName: 'GitHub test', endpoint: 'https://api.github.com/repos/cloudflare/workers-sdk/releases', adapterKind: 'github-releases', iconUrl: null, maxPerRun: 2, enabled: true };
 const sample = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'releases.json'), 'utf8')) as unknown[];
 
 describe('GitHub Releases adapter', () => {

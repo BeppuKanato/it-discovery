@@ -43,15 +43,15 @@ describe('収集ジョブと定刻の接続', () => {
 
   it('情報源の失敗後も続け、既存内容と状態を守り、無効な取得先を呼ばない', async () => {
     const sources = configs.listSources();
-    configs.saveSource({ ...sources[4]!, enabled: false });
+    configs.saveSource({ ...sources[3]!, enabled: false });
     const existing = articles.register(entry(sources[0]!.sourceId));
     articles.updateState(existing.article.articleId, { pinned: true });
     const transport = jest.spyOn(adapters, 'fetch').mockImplementation(async (source) => {
       if (source.sourceId === sources[1]!.sourceId) throw new SourceFetchError('http', 500);
       return { articles: [{ ...entry(source.sourceId), title: 'updated' }], skippedItems: 1 };
     });
-    await expect(job.run()).resolves.toMatchObject({ status: 'completed', updated: 1, added: 2, failedSources: 1, skippedItems: 3 });
-    expect(transport).toHaveBeenCalledTimes(4);
+    await expect(job.run()).resolves.toMatchObject({ status: 'completed', updated: 1, added: 1, failedSources: 1, skippedItems: 2 });
+    expect(transport).toHaveBeenCalledTimes(3);
     expect(articles.findById(existing.article.articleId)).toMatchObject({ article: { title: 'updated' }, state: { pinned: true } });
   });
 

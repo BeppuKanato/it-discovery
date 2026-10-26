@@ -27,7 +27,7 @@ try {
         });
       }
     });
-    console.log('架空のサンプル記事5件を追加・更新しました。');
+    console.log(`架空のサンプル記事${defaultSources.length}件を追加・更新しました。`);
   } else {
     console.log('マイグレーションと初期設定を適用しました。');
   }

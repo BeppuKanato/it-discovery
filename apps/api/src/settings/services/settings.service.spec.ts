@@ -30,19 +30,19 @@ describe('取得先と保持・収集設定の判断', () => {
   it('初期設定を追加し、再実行しても利用者の設定を上書きしない', () => {
     service.initialize();
     expect(service.getSettings()).toEqual(defaultSettings);
-    expect(service.listSources()).toHaveLength(5);
+    expect(service.listSources()).toHaveLength(4);
     service.saveSettings({ ...defaultSettings, maxArticles: 20000 });
     service.saveSource({ ...defaultSources[0]!, enabled: false });
     service.initialize();
     expect(service.getSettings().maxArticles).toBe(20000);
     expect(service.listSources()[0]?.enabled).toBe(false);
-    expect(service.listSources()).toHaveLength(5);
+    expect(service.listSources()).toHaveLength(4);
   });
 
   it('同じ取得先URLを利用者が別IDで登録済みならデフォルトを重ねない', () => {
     service.saveSource({ ...defaultSources[0]!, sourceId: 'my-zenn' });
     service.initialize();
-    expect(service.listSources()).toHaveLength(5);
+    expect(service.listSources()).toHaveLength(4);
     expect(service.listSources().some((source) => source.sourceId === 'zenn')).toBe(false);
   });
 

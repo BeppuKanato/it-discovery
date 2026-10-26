@@ -23,7 +23,7 @@ describe('取得先で絞り込む一覧HTTP API', () => {
       iconUrl: null, enabled: false, adapterKind: 'rss-atom', maxPerRun: 10 });
     const service = app.get(ArticleService);
     for (let index = 0; index < 50; index++) {
-      const sourceId = index % 2 === 0 ? 'zenn' : 'cloudflare_changelog';
+      const sourceId = index % 2 === 0 ? 'zenn' : 'publickey';
       const item = service.register({ sourceId, title: `記事${index}`, url: `https://example.com/${index}` }, new Date('2026-10-01'));
       if (sourceId === 'zenn') {
         ids.unshift(item.article.articleId);
@@ -51,12 +51,12 @@ describe('取得先で絞り込む一覧HTTP API', () => {
   it('気になると取得先を組み合わせ、指定しない一覧も維持する', async () => {
     const selected = await page('kind=interested&sourceId=zenn');
     expect(selected.articles.map(item => item.articleId)).toEqual(interests);
-    const all = await page(''); expect(all.articles.some(item => item.source.sourceId === 'cloudflare_changelog')).toBe(true);
+    const all = await page(''); expect(all.articles.some(item => item.source.sourceId === 'publickey')).toBe(true);
     expect(await page('sourceId=not-found')).toEqual({ articles: [], nextCursor: null, hasMore: false });
   });
   it('カーソルを別取得先・全取得先・別種類へ使い回せない', async () => {
     const selected = await page('sourceId=zenn&limit=1');
-    for (const query of ['sourceId=cloudflare_changelog', '', 'sourceId=zenn&kind=interested']) {
+    for (const query of ['sourceId=publickey', '', 'sourceId=zenn&kind=interested']) {
       expect((await fetch(`${base}/articles?${query}&cursor=${selected.nextCursor}`)).status).toBe(400);
     }
     const all = await page('limit=1');
@@ -70,7 +70,7 @@ describe('取得先で絞り込む一覧HTTP API', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     const sources = await response.json() as ArticleSource[];
     expect(sources).toContainEqual({ sourceId: 'paused', siteName: '停止中の取得先', iconUrl: null });
-    expect(sources).toContainEqual({ sourceId: 'syntax_podcast', siteName: 'Syntax', iconUrl: null });
+    expect(sources).toContainEqual({ sourceId: 'gihyo', siteName: 'gihyo.jp', iconUrl: null });
     expect(sources.every(source => Object.keys(source).sort().join(',') === 'iconUrl,siteName,sourceId')).toBe(true);
   });
 });
