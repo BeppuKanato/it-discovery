@@ -4,20 +4,20 @@ import { SettingsService } from '../../settings/services/settings.service';
 import { SqliteSettingsRepository } from '../../settings/repositories/sqlite-settings.repository';
 import { ArticleService } from '../../articles/services/article.service';
 import { SqliteArticleRepository } from '../../articles/repositories/sqlite-article.repository';
-import { CompanionRepository } from '../repositories/companion.repository';
+import { SqliteCompanionRepository } from '../repositories/sqlite-companion.repository';
 import { CompanionService } from './companion.service';
 import { GeminiClient } from './gemini-client';
 import { parseChat, parseNote } from '../validators/companion-input';
 import { companionPrompt } from '../models/companion-prompt';
 
 describe('相棒の会話・利用上限・発見ノート', () => {
-  let database: DatabaseService; let repository: CompanionRepository;
+  let database: DatabaseService; let repository: SqliteCompanionRepository;
   const oldPath = process.env['DATABASE_PATH']; const oldKey = process.env['GEMINI_API_KEY'];
   const oldModel = process.env['GEMINI_MODEL'];
   beforeEach(() => {
     process.env['DATABASE_PATH'] = ':memory:'; process.env['GEMINI_API_KEY'] = 'test-secret';
     delete process.env['GEMINI_MODEL'];
-    database = new DatabaseService(); repository = new CompanionRepository(database);
+    database = new DatabaseService(); repository = new SqliteCompanionRepository(database);
   });
   afterEach(() => {
     database.onApplicationShutdown();
@@ -67,7 +67,7 @@ describe('相棒の会話・利用上限・発見ノート', () => {
   });
   it('日次30回を守り、別インスタンスでも利用履歴を継承する', () => {
     for (let i = 0; i < 30; i++) repository.reserve(new Date(Date.UTC(2026, 9, 26, 0, i)));
-    expect(() => new CompanionRepository(database).reserve(new Date('2026-10-26T01:00:00Z'))).toThrow();
+    expect(() => new SqliteCompanionRepository(database).reserve(new Date('2026-10-26T01:00:00Z'))).toThrow();
     expect(database.client.prepare("SELECT requests FROM companion_usage WHERE period='month:2026-10'").get()).toEqual({ requests: 30 });
     expect(() => repository.reserve(new Date('2026-10-26T15:00:00Z'))).not.toThrow();
   });
@@ -91,7 +91,7 @@ describe('相棒の会話・利用上限・発見ノート', () => {
     const article = articles.register({ sourceId: 'zenn', url: 'https://example.com/1', title: 'SQLite' });
     const note = repository.saveNote('ファイルだけで扱える', article.article.articleId);
     database.client.prepare('DELETE FROM articles').run();
-    expect(new CompanionRepository(database).listNotes()).toEqual([note]);
+    expect(new SqliteCompanionRepository(database).listNotes()).toEqual([note]);
     expect(note.articleTitle).toBe('SQLite');
     repository.deleteNote(note.id); expect(repository.listNotes()).toEqual([]);
     expect(() => parseNote({ text: 'a'.repeat(801) })).toThrow();

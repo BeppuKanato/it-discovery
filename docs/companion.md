@@ -42,9 +42,10 @@ flowchart TD
   Model --> API[ApiClient 認証付きHTTP]
   Controller[CompanionController HTTP入口] --> Service[CompanionService 手順]
   Service --> Validator[入力Validator]
-  Service --> Repo[CompanionRepository SQLite操作]
+  Service --> Repo[CompanionRepository 保存契約]
   Service --> Gemini[GeminiClient 外部HTTP]
-  Repo --> DB[DatabaseService 共通接続]
+  SQL[SqliteCompanionRepository 実装] -. 実装 .-> Repo
+  SQL --> DB[DatabaseService 共通接続]
 ```
 
 記事配列・仕分けの仮選択は既存ページのVMに残す。共通Appが一覧の初回取得を行う設計には戻さない。ノートViewの表示開始で一覧を取得し、会話の送信は利用者の操作からだけ始める。
