@@ -14,9 +14,9 @@ watch(() => [messages.value.length, sending.value], async () => { await nextTick
 </script>
 <template>
   <Dialog v-model:visible="dialog" modal header="発見を話す" class="companion-conversation" :style="{ width: 'min(94vw, 620px)', maxHeight: '88dvh' }" :draggable="false">
-    <div class="conversation-intro"><span>アオイ · 発見の相棒</span><Button label="新しい会話" text size="small" :disabled="sending || saving" @click="vm.clearConversation" /></div>
+    <div class="conversation-intro"><span>アオイ</span><Button label="新しい会話" text size="small" :disabled="sending || saving" @click="vm.clearConversation" /></div>
     <div v-if="context" class="article-context"><span>選択中の記事 · タイトルと概要を共有</span><strong>{{ context.title }}</strong></div>
-    <div ref="feed" class="conversation-feed" role="log" aria-label="相棒との会話" aria-live="polite">
+    <div ref="feed" class="conversation-feed" role="log" aria-label="発見についての会話" aria-live="polite">
       <p v-if="!messages.length" class="invitation">気になったことを、ひとことでも。</p>
       <p v-for="(message, index) in messages" :key="index" class="bubble" :class="message.role"><span class="speaker">{{ message.role === 'user' ? 'あなた' : 'アオイ' }}</span>{{ message.text }}</p>
       <p v-if="sending" role="status" class="thinking">考え中…</p>
