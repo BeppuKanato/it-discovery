@@ -154,4 +154,4 @@ SortingCardは座標・Pointer capture・クリック抑止・ドラッグ中の
 
 ## 相棒と発見ノート
 
-AuthenticatedApplicationに全ページ共通の相棒・会話のViewと下部ナビを配置する。共通VMが会話と選択した記事の文脈を持ち、一覧・仕分けVMの記事配列を共有Storeへ移さない。Pageが記事を選んだイベントを共通Appへ渡す。会話の開始/終了は一覧Pageを再作成しない。ノートの保存・削除はCompanionModel経由でAPIへ依頼し、成功後だけ表示を変更する。詳しい依存関係・実行順序・状態は[相棒の設計](companion.md)。
+AuthenticatedApplicationに全ページ共通のキャラ・会話のViewと下部ナビを配置する。共通VMが会話と選択した記事の文脈を持ち、一覧・仕分けVMの記事配列を共有Storeへ移さない。Pageが記事を選んだイベントを共通Appへ渡す。会話の開始/終了は一覧Pageを再作成しない。会話からの保存はCompanionModel経由でAPIへ依頼し、成功後だけ通知する。ノートPageには専用のDiscoveryNotebookModelとVMを組み立て、月集計・選択日・1件の本文と削除を管理する。全件の本文配列を共通Storeへ集めない。[会話の設計](companion.md)と[カレンダーの部品・依存関係・実行順序](discovery-notebook.md)を参照。
