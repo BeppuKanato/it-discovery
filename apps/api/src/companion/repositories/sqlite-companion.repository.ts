@@ -1,5 +1,6 @@
 import { Inject, Injectable, HttpException } from '@nestjs/common';
-import type { DiscoveryNote } from '@it-discovery/contracts';
+import type { DiscoveryNote, DiscoveryNoteCalendar, DiscoveryNoteDay } from '@it-discovery/contracts';
+import { notebookPeriod } from '../models/notebook-period';
 import { CompanionRepository } from './companion.repository';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 @Injectable()
@@ -23,6 +24,30 @@ export class SqliteCompanionRepository extends CompanionRepository {
   listNotes(): DiscoveryNote[] {
     const rows = this.database.client.prepare('SELECT id, text, article_id AS articleId, article_title AS articleTitle, created_at AS createdAt FROM discovery_notes ORDER BY id DESC LIMIT 100').all();
     return rows as DiscoveryNote[];
+  }
+  noteCalendar(month: string): DiscoveryNoteCalendar {
+    const range = notebookPeriod(month);
+    // 本文を全件転送せず、指定月の全記録を集計する。最新100件の旧APIとは独立。
+    return this.database.client.transaction(() => {
+      const days = this.database.client.prepare(`SELECT date(created_at, '+9 hours') AS date, COUNT(*) AS count
+        FROM discovery_notes WHERE created_at >= ? AND created_at < ? GROUP BY date ORDER BY date`).all(range.start, range.end) as DiscoveryNoteCalendar['days'];
+      const bounds = this.database.client.prepare(`SELECT COUNT(*) AS totalCount,
+        strftime('%Y-%m', MIN(created_at), '+9 hours') AS firstMonth,
+        strftime('%Y-%m', MAX(created_at), '+9 hours') AS lastMonth FROM discovery_notes`).get() as Pick<DiscoveryNoteCalendar, 'totalCount' | 'firstMonth' | 'lastMonth'>;
+      return { month, days, ...bounds };
+    })();
+  }
+  noteDay(date: string, requestedOffset: number): DiscoveryNoteDay {
+    const range = notebookPeriod(date);
+    // 件数と本文を同じ読み取りトランザクションで取得する。削除で末尾を超えた位置は補正する。
+    return this.database.client.transaction(() => {
+      const { count } = this.database.client.prepare('SELECT COUNT(*) AS count FROM discovery_notes WHERE created_at >= ? AND created_at < ?').get(range.start, range.end) as { count: number };
+      const offset = Math.min(requestedOffset, Math.max(0, count - 1));
+      const note = this.database.client.prepare(`SELECT n.id, n.text, n.article_id AS articleId, n.article_title AS articleTitle,
+        n.created_at AS createdAt, a.url AS articleUrl FROM discovery_notes n LEFT JOIN articles a ON a.article_id = n.article_id
+        WHERE n.created_at >= ? AND n.created_at < ? ORDER BY n.created_at DESC, n.id DESC LIMIT 1 OFFSET ?`).get(range.start, range.end, offset) as DiscoveryNoteDay['note'] | undefined;
+      return { date, offset, totalCount: count, note: note ?? null };
+    })();
   }
   saveNote(text: string, articleId?: number): DiscoveryNote {
     // 記事が保持期限で消えてもノートと記録時のタイトルは残す。外部キーで連動削除しない。

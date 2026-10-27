@@ -23,6 +23,8 @@ try {
   browser = await chromium.launch(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {});
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await context.newPage(); diagnosticsPage = page;
+  // 月と日付の検証が実行日に左右されないように固定する。退出アニメーションの時計は動かす。
+  await page.clock.setFixedTime(new Date('2026-10-27T01:00:00.000Z'));
   page.setDefaultTimeout(15000);
   const articles = [3, 2, 1].map(articleId => ({
     articleId, url: `https://example.com/${articleId}`, title: `スワイプ検証記事${articleId}`,
@@ -39,6 +41,23 @@ try {
     const path = url.pathname;
     const sourceId = url.searchParams.get('sourceId');
     if (path === '/api/companion/chat') { chatCalls++; await route.fulfill({ json: { text: 'その使い方は気になるね。' } }); return; }
+    const noteDate = note => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(note.createdAt));
+    if (path === '/api/companion/notes/calendar') {
+      const month = url.searchParams.get('month'); const grouped = new Map();
+      for (const note of notes) { const date = noteDate(note); if (date.startsWith(month)) grouped.set(date, (grouped.get(date) ?? 0) + 1); }
+      const months = notes.map(note => noteDate(note).slice(0, 7)).sort();
+      await route.fulfill({ json: { month, days: [...grouped].sort().map(([date, count]) => ({ date, count })), totalCount: notes.length, firstMonth: months[0] ?? null, lastMonth: months.at(-1) ?? null } }); return;
+    }
+    if (path === '/api/companion/notes/day') {
+      const date = url.searchParams.get('date'); const dayNotes = notes.filter(note => noteDate(note) === date).sort((a,b) => b.createdAt.localeCompare(a.createdAt) || b.id-a.id);
+      const offset = Math.min(Number(url.searchParams.get('offset') ?? 0), Math.max(0, dayNotes.length - 1));
+      const note = dayNotes[offset];
+      await route.fulfill({ json: { date, offset, totalCount: dayNotes.length, note: note ? { ...note, articleUrl: articles.find(article => article.articleId === note.articleId)?.url ?? null } : null } }); return;
+    }
+    if (/^\/api\/companion\/notes\/\d+$/.test(path) && route.request().method() === 'DELETE') {
+      const index = notes.findIndex(note => note.id === Number(path.split('/').at(-1))); if (index >= 0) notes.splice(index,1);
+      await route.fulfill({ json: { deleted: true } }); return;
+    }
     if (path === '/api/companion/notes') {
       if (route.request().method() === 'POST') notes.unshift({ id: 1, text: route.request().postDataJSON().text, articleId: null, articleTitle: null, createdAt: '2026-10-26T00:00:00Z' });
       await route.fulfill({ json: route.request().method() === 'POST' ? notes[0] : notes }); return;
@@ -115,7 +134,7 @@ try {
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'artifacts/companion/list.png' });
   assert.equal(chatCalls, 0);
-  await page.getByRole('button', { name: '相棒と話す', exact: true }).click();
+  await page.getByRole('button', { name: '発見を話す', exact: true }).click();
   await page.getByRole('textbox', { name: '発見や疑問' }).fill('SQLiteはサーバーなしで使えるんだね');
   await page.getByRole('button', { name: '送る', exact: true }).click();
   await page.getByText('その使い方は気になるね。', { exact: false }).waitFor();
@@ -128,13 +147,49 @@ try {
   await page.getByRole('button', { name: '発見ノート', exact: true }).click();
   await page.getByText('SQLiteはサーバーなしで使えるんだね', { exact: true }).waitFor();
   await page.screenshot({ path: 'artifacts/companion/notebook.png' });
-  await page.getByRole('button', { name: '相棒を隠す', exact: true }).click();
+  // 30件ある月でも本文は常に1件。100件より古い月への切替・削除後の再集計も確認する。
+  let noteId = 2;
+  for (const [day, count] of [[2,1],[4,2],[7,3],[10,1],[12,2],[15,4],[18,2],[20,3],[21,2],[24,4],[26,3],[27,3]]) {
+    for (let index = 0; index < count; index++) notes.push({ id: noteId++, text: `${day}日の発見 ${index+1}`, articleId: 3, articleTitle: '元記事のタイトル', createdAt: `2026-10-${String(day).padStart(2,'0')}T01:00:00.000Z` });
+  }
+  for (let index = 0; index < 110; index++) notes.push({ id: noteId++, text: `9月の発見 ${index+1}`, articleId: null, articleTitle: null, createdAt: '2026-09-15T01:00:00.000Z' });
+  await page.getByRole('button', { name: 'ノートを更新', exact: true }).click();
+  await page.getByText('この月に 31 の発見', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '10月15日、4件の発見', exact: true }).click();
+  await page.getByText('15日の発見 4', { exact: true }).waitFor();
+  assert.equal(await page.locator('.note-page').count(), 1);
+  await page.getByRole('button', { name: '次の発見', exact: true }).click();
+  await page.getByText('15日の発見 3', { exact: true }).waitFor();
+  // めくる操作でキーボードのフォーカスが失われない。
+  await page.getByRole('button', { name: '次の発見', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.getByText('15日の発見 2', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '次の発見', exact: true }).evaluate(el => el === document.activeElement), true);
+  await page.getByRole('button', { name: 'この発見を削除', exact: true }).click();
+  await page.getByText('この月に 30 の発見', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '10月15日、3件の発見', exact: true }).waitFor();
+  await page.getByRole('button', { name: '10月1日、0件の発見', exact: true }).click();
+  await page.getByText('この日の記録はありません。', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '前の月', exact: true }).click();
+  await page.getByText('この月に 110 の発見', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '次の月', exact: true }).click();
+  await page.getByRole('button', { name: '10月27日、3件の発見', exact: true }).click();
+  await page.getByText('27日の発見 3', { exact: true }).waitFor();
+  await page.getByText('きっかけになった記事', { exact: true }).click();
+  assert.equal(await page.getByRole('link', { name: '元記事を読む（別タブ） ↗', exact: true }).getAttribute('href'), 'https://example.com/3');
+  await page.getByText('きっかけになった記事', { exact: true }).click();
+  await page.getByRole('button', { name: '10月27日、3件の発見', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'artifacts/companion/notebook-calendar.png', fullPage: true });
+  await page.setViewportSize({ width: 320, height: 740 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'キャラクターを隠す', exact: true }).click();
   assert.equal(await page.locator('.companion-dock').count(), 0);
-  await page.getByRole('button', { name: '相棒を表示', exact: true }).click();
+  await page.getByRole('button', { name: 'キャラクターを表示', exact: true }).click();
   await page.getByRole('dialog', { name: '発見を話す', exact: true }).waitFor();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '設定', exact: true }).click();
-  await page.getByRole('switch', { name: '相棒を表示する', exact: true }).waitFor();
+  await page.getByRole('switch', { name: 'キャラクターを表示する', exact: true }).waitFor();
   await page.screenshot({ path: 'artifacts/companion/settings.png' });
   await context.close();
   console.log('実タッチ入力: 追従・右登録・左見送り・短距離・縦スクロール・戻す・取得先フィルター OK');
