@@ -42,7 +42,7 @@ async function navigate(target: Screen): Promise<void> {
   <div class="application-content" :class="{ 'with-companion': companion.visible.value }">
   <ArticleListPage @article-context="companion.selectArticle" v-if="screen === 'list'" :list-model="models.articleList" :state-model="models.articleState" :opening-model="models.articleOpening" />
   <SortingPage v-else-if="screen === 'sorting'" @article-context="companion.selectArticle" :initial-candidates="automaticCandidates" :batch-sync="models.interestBatchSync" :create-pending-interests="models.createPendingInterests" :sorting-model="models.sorting" :opening-model="models.articleOpening" :state-model="models.articleState" @exit="navigate('list')" />
-  <DiscoveryNotesPage v-else-if="screen === 'notes'" :vm="companion" />
+  <DiscoveryNotesPage v-else-if="screen === 'notes'" :vm="companion" :model="models.notebook" />
   <CompanionSettingsPage v-else :vm="companion" />
   </div>
   <CompanionDock v-if="!companion.dialog.value" :visible="companion.visible.value" :quiet="screen === 'sorting'" :thinking="companion.sending.value" @open="companion.open" @hide="companion.visible.value = false" />
