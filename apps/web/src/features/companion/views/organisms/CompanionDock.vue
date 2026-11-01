@@ -4,27 +4,24 @@ defineProps<{ visible: boolean; quiet: boolean; thinking: boolean }>();
 const emit = defineEmits<{ open: []; hide: [] }>();
 </script>
 <template>
-  <aside v-if="visible" class="companion-dock" aria-label="相棒">
-    <div class="dock-copy"><span class="dock-label">YOUR DISCOVERY PARTNER</span>
-      <p>{{ quiet ? '発見を、ひとつずつ。' : '気になる発見、あった？' }}</p>
-      <Button label="発見を話す" text size="small" @click="emit('open')" />
-    </div>
-    <Button class="hide-companion" text rounded aria-label="相棒を隠す" @click="emit('hide')">×</Button>
-    <button type="button" class="character" aria-label="相棒と話す" @click="emit('open')">
+  <!-- 背景や専用の領域を作らず、立ち絵だけを記事やノートに重ねる。
+       aside自体はタップを遮らず、話す・隠す操作だけが入力を受ける。 -->
+  <aside v-if="visible" class="companion-dock" aria-label="キャラクター">
+    <Button class="hide-companion" text rounded aria-label="キャラクターを隠す" @click="emit('hide')">×</Button>
+    <button type="button" class="character" aria-label="発見を話す" @click="emit('open')">
       <img :src="thinking ? '/characters/aoi-thinking.webp' : '/characters/aoi-normal.webp'" alt="" width="850" height="1850" />
+      <span v-if="!quiet" class="character-label">発見を話す</span>
     </button>
   </aside>
-  <Button v-else class="reopen-companion" label="相棒を表示" size="small" outlined @click="emit('open')" />
+  <Button v-else class="reopen-companion" label="キャラクターを表示" size="small" outlined @click="emit('open')" />
 </template>
 <style scoped>
-.companion-dock { position: fixed; z-index: 12; inset-inline: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); height: clamp(145px, 23svh, 190px); max-width: 900px; margin-inline: auto; background: linear-gradient(180deg, #edf7ffed, #e1f0fffa); border-top: 1px solid #d8eaff; border-radius: 28px 28px 0 0; }
-.dock-copy { position: absolute; left: 22px; top: 28px; right: 145px; }
-.dock-label { color: var(--p-discovery-partner-muted); font-size: 9px; letter-spacing: .12em; }
-p { font-size: 14px; font-weight: 650; color: var(--p-discovery-partner-ink); line-height: 1.7; margin: 10px 0 2px; }
-.character { position: absolute; right: 24px; bottom: 8px; height: calc(100% - 8px); width: 112px; padding: 0; border: none; background: none; cursor: pointer; }
+.companion-dock { position: fixed; z-index: 12; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(72px + env(safe-area-inset-bottom, 0px)); height: clamp(145px, 23svh, 190px); width: clamp(82px, 24vw, 112px); pointer-events: none; }
+.character { position: absolute; right: 0; bottom: 0; height: 100%; width: 100%; padding: 0; border: none; background: none; cursor: pointer; pointer-events: auto; }
 .character img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: bottom; filter: drop-shadow(0 5px 5px #4979b21c); }
 .character:focus-visible { outline: 2px solid var(--p-primary-color); border-radius: 16px; }
-.hide-companion { position: absolute; right: 4px; top: 0; z-index: 1; width: 32px; height: 32px; font-size: 19px; }
+.character-label { position: absolute; bottom: 0; right: 0; white-space: nowrap; padding: 4px 8px; font-size: 10px; color: var(--p-primary-color); background: var(--p-discovery-paper); border: 1px solid var(--p-discovery-line); border-radius: 20px; }
+.hide-companion { position: absolute; right: -7px; top: -10px; z-index: 1; min-width: 36px; min-height: 36px; font-size: 19px; pointer-events: auto; background: var(--p-discovery-paper); }
 .reopen-companion { position: fixed; z-index: 12; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); right: 16px; background: white; }
-@media (max-height: 500px) { .companion-dock { height: 105px; } .dock-copy { top: 12px; } .dock-label { display: none; } }
+@media (max-height: 500px) { .companion-dock { height: 105px; } }
 </style>

@@ -7,8 +7,8 @@ const { visible } = props.vm;
 </script>
 <template>
   <main class="settings-page"><p class="eyebrow">MAKE YOURSELF AT HOME</p><h1>設定<span>。</span></h1>
-    <section class="settings-card"><h2>発見の相棒</h2><label class="setting-row" for="show-companion"><span>相棒を表示する</span><ToggleSwitch input-id="show-companion" v-model="visible" /></label>
-      <p>話したいときにタップ。仕分け中は静かに見守ります。</p><Button label="相棒と話す" outlined @click="vm.open" /></section>
+    <section class="settings-card"><h2>キャラクター</h2><label class="setting-row" for="show-companion"><span>キャラクターを表示する</span><ToggleSwitch input-id="show-companion" v-model="visible" /></label>
+      <p>話したいときにタップ。仕分け中は静かに見守ります。</p><Button label="発見を話す" outlined @click="vm.open" /></section>
     <section class="settings-card"><h2>会話と記録</h2><p>会話は基本ひとこと。自動保存せず、「発見ノートに残す」で自分の発見だけを保存します。</p><p>1日30回・月500回まで。会話内容と記事のタイトル・概要をGeminiへ送信します。</p></section>
   </main>
 </template>

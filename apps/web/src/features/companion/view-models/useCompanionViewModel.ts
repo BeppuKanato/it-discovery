@@ -8,6 +8,8 @@ export function useCompanionViewModel(model: CompanionModel) {
   const sending = ref(false); const saving = ref(false); const loadingNotes = ref(false);
   const error = ref<string | null>(null); const noteError = ref<string | null>(null); const notice = ref<string | null>(null);
   const notes = ref<DiscoveryNote[]>([]); const deleting = ref<number | null>(null);
+  // 保存成功をノートPageへ通知する版。月・日・本文はPage自身のVMが読み直す。
+  const notesVersion = ref(0);
   const pending = new Set<AbortController>(); let disposed = false; let noteGeneration = 0;
   const canSend = computed(() => !sending.value && !!draft.value.trim() && draft.value.length <= 800);
   const controller = () => { const value = new AbortController(); pending.add(value); return value; };
@@ -44,7 +46,7 @@ export function useCompanionViewModel(model: CompanionModel) {
     try {
       const note = await model.save({ text, ...(context.value ? { articleId: context.value.articleId } : {}) }, request.signal);
       if (disposed) return;
-      noteGeneration++; notes.value = [note, ...notes.value].slice(0, 100); notice.value = '発見ノートに残しました。';
+      noteGeneration++; notesVersion.value++; notes.value = [note, ...notes.value].slice(0, 100); notice.value = '発見ノートに残しました。';
     } catch { if (!disposed) error.value = '保存結果を確認できませんでした。ノートを確認してから再度お試しください。'; }
     finally { pending.delete(request); if (!disposed) saving.value = false; }
   }
@@ -65,6 +67,6 @@ export function useCompanionViewModel(model: CompanionModel) {
   function dispose() { disposed = true; pending.forEach(request => request.abort()); pending.clear(); }
   return { visible, dialog, draft, messages: readonly(messages), context: readonly(context), sending: readonly(sending), saving: readonly(saving),
     error: readonly(error), notice: readonly(notice), notes: readonly(notes), loadingNotes: readonly(loadingNotes), noteError: readonly(noteError), deleting: readonly(deleting),
-    canSend, open, selectArticle, clearConversation, send, saveDiscovery, loadNotes, deleteNote, dispose };
+    notesVersion: readonly(notesVersion), canSend, open, selectArticle, clearConversation, send, saveDiscovery, loadNotes, deleteNote, dispose };
 }
 export type CompanionViewModel = ReturnType<typeof useCompanionViewModel>;

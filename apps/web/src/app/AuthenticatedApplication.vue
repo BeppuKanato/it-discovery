@@ -42,7 +42,7 @@ async function navigate(target: Screen): Promise<void> {
   <div class="application-content" :class="{ 'with-companion': companion.visible.value }">
   <ArticleListPage @article-context="companion.selectArticle" v-if="screen === 'list'" :list-model="models.articleList" :state-model="models.articleState" :opening-model="models.articleOpening" />
   <SortingPage v-else-if="screen === 'sorting'" @article-context="companion.selectArticle" :initial-candidates="automaticCandidates" :batch-sync="models.interestBatchSync" :create-pending-interests="models.createPendingInterests" :sorting-model="models.sorting" :opening-model="models.articleOpening" :state-model="models.articleState" @exit="navigate('list')" />
-  <DiscoveryNotesPage v-else-if="screen === 'notes'" :vm="companion" />
+  <DiscoveryNotesPage v-else-if="screen === 'notes'" :vm="companion" :model="models.notebook" />
   <CompanionSettingsPage v-else :vm="companion" />
   </div>
   <CompanionDock v-if="!companion.dialog.value" :visible="companion.visible.value" :quiet="screen === 'sorting'" :thinking="companion.sending.value" @open="companion.open" @hide="companion.visible.value = false" />
@@ -53,9 +53,8 @@ async function navigate(target: Screen): Promise<void> {
 
 <style scoped>
 .application-content { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
-.application-content.with-companion { padding-bottom: calc(clamp(145px, 23svh, 190px) + 84px + env(safe-area-inset-bottom, 0px)); }
+/* 立ち絵はコンテンツに重ねる。キャラ用の専用下部スペースは確保しない。 */
 .bottom-navigation { position: fixed; z-index: 14; bottom: 0; inset-inline: 0; display: grid; grid-template-columns: repeat(4, 1fr); padding: 5px max(10px, env(safe-area-inset-right, 0px)) calc(5px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px)); height: calc(64px + env(safe-area-inset-bottom, 0px)); background: #fffffff5; border-top: 1px solid var(--p-discovery-line); }
 .bottom-navigation button { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; border: 0; background: transparent; color: #8697ac; font-size: 10px; cursor: pointer; border-radius: 12px; }
 .bottom-navigation button span { font-size: 25px; line-height: 1; }.bottom-navigation button[aria-current] { color: var(--p-primary-color); background: #edf6ff; font-weight: 700; }.bottom-navigation button:disabled { opacity: .45; cursor: default; }.bottom-navigation button:focus-visible { outline: 2px solid var(--p-primary-color); }
-@media (max-height: 500px) { .application-content.with-companion { padding-bottom: calc(190px + env(safe-area-inset-bottom, 0px)); } }
 </style>

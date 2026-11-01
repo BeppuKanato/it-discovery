@@ -1,4 +1,5 @@
 import { CompanionModel } from '../features/companion/models/companion.model';
+import { DiscoveryNotebookModel } from '../features/companion/models/discovery-notebook.model';
 import type { AuthSession } from '../infrastructure/auth/auth-session';
 import { BrowserApplicationLease } from '../infrastructure/browser/application-lease';
 import { ApplicationStartupModel } from '../features/startup/models/application-startup.model';
@@ -20,7 +21,7 @@ export function createApplicationModels(baseURL: string, session?: AuthSession, 
   const sorting = new SortingModel(api);
   const interestBatchSync = new InterestBatchSyncModel(pendingStore,api);
   const startup = new ApplicationStartupModel(new BrowserApplicationLease(`it-discovery-owner:${apiScope}`),pendingStore,interestBatchSync,sorting);
-  return { companion: new CompanionModel(api), startup, interestBatchSync, createPendingInterests: () => new PendingInterestModel(pendingStore), sorting,
+  return { companion: new CompanionModel(api), notebook: new DiscoveryNotebookModel(api), startup, interestBatchSync, createPendingInterests: () => new PendingInterestModel(pendingStore), sorting,
     articleList: new ArticleListModel(api), articleState: new ArticleStateModel(api), articleOpening: new ArticleOpeningModel(new BrowserArticleOpener()) };
 }
 export type ApplicationModels = ReturnType<typeof createApplicationModels>;

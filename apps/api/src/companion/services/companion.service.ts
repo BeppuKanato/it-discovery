@@ -2,6 +2,7 @@ import { Inject, Injectable, ServiceUnavailableException, HttpException } from '
 import { CompanionRepository } from '../repositories/companion.repository';
 import { GeminiClient } from './gemini-client';
 import { parseChat, parseNote } from '../validators/companion-input';
+import { parseNotebookDate, parseNotebookMonth, parseNotebookOffset } from '../validators/notebook-query';
 @Injectable()
 export class CompanionService {
   private chatting = false;
@@ -23,6 +24,8 @@ export class CompanionService {
     } finally { this.chatting = false; }
   }
   listNotes() { return this.repository.listNotes(); }
+  noteCalendar(month: unknown) { return this.repository.noteCalendar(parseNotebookMonth(month)); }
+  noteDay(date: unknown, offset: unknown) { return this.repository.noteDay(parseNotebookDate(date), parseNotebookOffset(offset)); }
   saveNote(input: unknown) { const note = parseNote(input); return this.repository.saveNote(note.text, note.articleId); }
   deleteNote(id: number) { this.repository.deleteNote(id); }
 }

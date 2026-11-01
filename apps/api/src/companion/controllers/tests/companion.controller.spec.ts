@@ -21,7 +21,7 @@ describe('相棒APIの認証とHTTP入出力', () => {
   afterAll(async () => { await app.close(); if (previous === undefined) delete process.env['DATABASE_PATH']; else process.env['DATABASE_PATH'] = previous; });
   const headers = { Authorization: 'Bearer allowed', 'Content-Type': 'application/json' };
   it('会話とノートを未ログイン・未登録アカウントから守る', async () => {
-    for (const path of ['/chat', '/notes']) {
+    for (const path of ['/chat', '/notes', '/notes/calendar?month=2026-10', '/notes/day?date=2026-10-27']) {
       const method = path === '/chat' ? 'POST' : 'GET';
       expect((await fetch(base + path, { method })).status).toBe(401);
       expect((await fetch(base + path, { method, headers: { Authorization: 'Bearer denied' } })).status).toBe(403);
@@ -40,5 +40,15 @@ describe('相棒APIの認証とHTTP入出力', () => {
   it('不正な入力や不正なノートIDは拒否する', async () => {
     expect((await fetch(base + '/chat', { method: 'POST', headers, body: JSON.stringify({ message: 'x'.repeat(801), history: [] }) })).status).toBe(400);
     expect((await fetch(base + '/notes/-1', { method: 'DELETE', headers })).status).toBe(400);
+    for (const query of ['/notes/calendar', '/notes/calendar?month=2026-13', '/notes/day?date=2026-02-30', '/notes/day?date=2026-10-27&offset=-1', '/notes/day?date=2026-10-27&date=2026-10-28']) {
+      expect((await fetch(base + query, { headers })).status).toBe(400);
+    }
+  });
+  it('カレンダー・日別APIも認証後だけ取得し、キャッシュしない', async () => {
+    for (const query of ['/notes/calendar?month=2026-10', '/notes/day?date=2026-10-27&offset=0']) {
+      const response = await fetch(base + query, { headers });
+      expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toHaveProperty('totalCount', 0);
+    }
   });
 });

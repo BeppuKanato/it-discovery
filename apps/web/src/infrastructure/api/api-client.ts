@@ -1,5 +1,6 @@
 import type { CompanionChatRequest, CompanionChatResponse, DiscoveryNote, DiscoveryNoteRequest } from '@it-discovery/contracts';
-import { isDiscoveryNote } from './companion-response';
+import { isDiscoveryNote, isNoteCalendar, isNoteDay } from './companion-response';
+import type { DiscoveryNoteCalendar, DiscoveryNoteDay } from '@it-discovery/contracts';
 import type { AuthSession } from '../auth/auth-session';
 import { InterestBatchError } from '../../features/sorting/models/interest-batch-sync.model';
 import type { PendingInterestBatch } from '../../features/sorting/models/pending-interest';
@@ -112,6 +113,16 @@ export class ApiClient {
   async getDiscoveryNotes(signal?: AbortSignal): Promise<DiscoveryNote[]> {
     const { data } = await this.http.get<unknown>('/companion/notes', { signal });
     if (!Array.isArray(data) || data.length > 100 || !data.every(isDiscoveryNote)) throw new Error('ノートの応答が不正です。');
+    return data;
+  }
+  async getNoteCalendar(month: string, signal?: AbortSignal): Promise<DiscoveryNoteCalendar> {
+    const { data } = await this.http.get<unknown>('/companion/notes/calendar', { params: { month }, signal });
+    if (!isNoteCalendar(data, month)) throw new Error('発見カレンダーの応答が不正です。');
+    return data;
+  }
+  async getNoteDay(date: string, offset: number, signal?: AbortSignal): Promise<DiscoveryNoteDay> {
+    const { data } = await this.http.get<unknown>('/companion/notes/day', { params: { date, offset }, signal });
+    if (!isNoteDay(data, date)) throw new Error('その日の発見の応答が不正です。');
     return data;
   }
   async saveDiscoveryNote(request: DiscoveryNoteRequest, signal?: AbortSignal): Promise<DiscoveryNote> {
